@@ -1,43 +1,39 @@
 # Architecture Decision Record - Cas 3 : Prediction de churn et recommandation d'offre
 
-**Statut :** propose pour la seance 1  
-**Date :** 2026-05-26  
-**Contexte :** TP orchestration machine learning sur Minikube sous contrainte de ressources
+## Contexte et choix du cas d'usage
 
-## Contexte
+Nous avons choisi le **cas 3 : prediction de churn et recommandation d'offre**. Ce choix est adapte au quota impose de **2500m CPU** et **1.5 Gi de memoire**, car il repose sur des donnees tabulaires legeres et sur des modeles peu volumineux. Le dataset principal sera **Telco Customer Churn IBM**, compose d'environ 7043 clients et 21 variables dans un CSV d'environ 1 Mo, disponible publiquement sur Kaggle, UCI ou GitHub. Pour le modele de recommandation, nous genererons un dataset synthetique de 5000 lignes avec 5 categories d'offres fictives a partir des caracteristiques du dataset initial.
 
-Nous choisissons le cas 3, prediction de churn et recommandation d'offre, car il correspond le mieux au quota impose de **2500m CPU** et **1.5 Gi de memoire**. Le dataset Telco Customer Churn IBM contient environ 7043 clients et 21 variables dans un CSV d'environ 1 Mo, ce qui rend le preprocessing et le chargement des donnees compatibles avec un cluster Minikube contraint. Le besoin metier est d'identifier les clients a risque de resiliation et de proposer une offre en moins de 200 ms. Le risque principal n'est donc pas la taille des donnees, mais la latence sous charge et le dimensionnement du service d'inference a 150 requetes par minute.
+Le besoin metier est d'identifier les clients a risque de resiliation et de proposer une offre en moins de 200 ms. Le risque principal n'est donc pas la taille des donnees, mais la tenue en charge, notamment au niveau **stress** du script fourni, soit **150 req/min**. Un service Flask mono-threade pouvant saturer a ce debit, le service d'inference devra etre lance avec plusieurs workers et ajuste apres mesure.
 
-Le systeme respectera l'architecture minimale imposee : un service de preprocessing, un service d'inference principal et un service de monitoring, tous containerises et deployes dans le namespace `projet-TRIGRAMME`. Le script de charge appellera le service d'inference expose par Kubernetes via `minikube service inference-svc -n projet-TRIGRAMME --url`, puis enverra des requetes `POST /predict` avec les colonnes du dataset Telco sans `Churn` ni `customerID`. La reponse attendue sera un JSON de la forme `{"churn_probability": 0.74, "recommended_offer": "remise_tarifaire"}`.
+## Architecture retenue
 
-## Decision
+L'architecture respectera les trois services imposes : **preprocessing**, **inference** et **monitoring**, tous containerises et deployes dans le namespace `projet-TRIGRAMME`. Le script de charge appellera le service expose `inference-svc` via `minikube service inference-svc -n projet-TRIGRAMME --url`. L'endpoint public sera `POST /predict`; il recevra un JSON contenant les colonnes du dataset Telco sans `Churn` ni `customerID`, puis retournera une reponse de type `{"churn_probability": 0.74, "recommended_offer": "remise_tarifaire"}`.
 
-Le modele principal sera un modele tabulaire leger, XGBoost ou Random Forest, entraine hors Minikube et versionne dans `models/`. Il produira un score de churn entre 0 et 1. Le modele de recommandation sera un classifieur multi-classes entraine sur 5000 lignes synthetiques generees a partir du dataset Telco, avec 5 categories d'offres fictives. Les deux modeles seront charges dans le meme service d'inference. Cette decision evite un quatrieme service Kubernetes, reduit les communications inter-services, economise des `requests` CPU et memoire, et diminue la latence ajoutee par un appel HTTP interne. La contrepartie est un couplage plus fort : les deux modeles seront redeployes ensemble et ne pourront pas scaler independamment. Dans le cadre de ce TP et du quota de 1.5 Gi, ce compromis est acceptable.
+Le service d'inference recevra la requete externe, appellera le service `preprocessing-svc` via le DNS interne Kubernetes pour valider et normaliser les donnees, puis executera la prediction de churn et la recommandation d'offre. Les services communiqueront via des objets `Service` de type `ClusterIP`, afin d'eviter toute dependance a `localhost` ou aux adresses IP ephemeres des pods. Le service de monitoring enregistrera au minimum le volume de requetes, les latences, les erreurs et les predictions principales, afin de rester exploitable pendant les tests de charge.
 
-Le service de preprocessing sera separe afin de respecter l'architecture imposee. Il recevra les donnees brutes, validera les champs, appliquera les transformations necessaires et transmettra un payload normalise au service d'inference via le DNS interne Kubernetes, par exemple `http://inference-svc`. Le service de monitoring enregistrera le volume de requetes, les latences, le taux d'erreur et les predictions principales. Il devra rester lisible pendant les tests de charge, car un monitoring muet ferait perdre les points associes.
+Le premier modele sera un modele tabulaire leger, **XGBoost ou Random Forest**, entraine hors Minikube et versionne dans `models/`. Le deuxieme modele sera un classifieur multi-classes pour recommander une offre parmi 5 categories. Nous choisissons de charger ces deux modeles dans le meme service d'inference. Cette decision evite un quatrieme service Kubernetes, economise un environnement Python supplementaire, reduit les `requests` CPU/memoire et supprime un appel HTTP interne entre deux modeles. Le compromis est un couplage plus fort : les deux modeles seront redeployes et scales ensemble. Sous un quota de 1.5 Gi, ce compromis est acceptable.
 
-Le pipeline CI/CD sera implemente avec GitHub Actions. Ce choix est coherent avec le depot GitHub, permet de stocker les identifiants Docker Hub dans les secrets du depot et permet de bloquer explicitement le build et le push des images si les tests echouent. Le pipeline executera les tests avec un seuil de couverture de 80 %, construira les images Docker uniquement si les tests passent, puis poussera les images versionnees sur Docker Hub.
+## Dimensionnement initial et quota
 
-## Dimensionnement initial
+Le dimensionnement ci-dessous est une estimation de seance 1. Il sera ajuste apres les premieres mesures avec `kubectl top pods`, mais il montre que la somme des `requests` reste sous le quota du cas 3.
 
-Le dimensionnement ci-dessous est une estimation de seance 1. Il sera verifie puis ajuste avec `kubectl top pods` pendant les seances suivantes. Les valeurs sont volontairement inferieures au quota afin de conserver une marge pour les pics, les redemarrages et les tests de charge.
+| Service         |    Requests CPU | Requests memoire | Justification                             |
+| --------------- | --------------: | ---------------: | ----------------------------------------- |
+| Preprocessing   |            300m |            192Mi | Transformations tabulaires legeres        |
+| Inference       |           1200m |            512Mi | Deux modeles legers et 2 a 4 workers HTTP |
+| Monitoring      |            150m |            128Mi | Agregation de metriques                   |
+| **Total** | **1650m** |  **832Mi** | Sous le quota                             |
+| **Marge** |  **850m** |  **704Mi** | Quota restant sur 2500m / 1536Mi          |
 
-| Service | Requests CPU | Requests memoire | Justification |
-| --- | ---: | ---: | --- |
-| Preprocessing | 300m | 192Mi | Transformations tabulaires legeres, surtout CPU |
-| Inference | 1200m | 512Mi | Deux modeles legers, workers HTTP, objectif 150 req/min |
-| Monitoring | 150m | 128Mi | Agregation de metriques et exposition simple |
-| **Total** | **1650m** | **832Mi** | Sous le quota cas 3 |
-| **Marge** | **850m** | **704Mi** | Quota restant : 2500m CPU et 1536Mi memoire |
+Cette repartition laisse environ 34 % de marge CPU et 46 % de marge memoire sur les `requests`. Les `limits` seront fixees apres mesure, en visant environ 120 a 130 % du pic observe sous charge normale, tout en restant compatibles avec le `ResourceQuota`. Si le niveau stress montre du throttling CPU sur l'inference, la correction prioritaire sera d'ajuster le nombre de workers ou de redistribuer les ressources depuis les services moins consommateurs.
 
-Cette repartition laisse environ 34 % de marge CPU et 46 % de marge memoire sur les `requests`. Les `limits` seront fixes apres mesure, en visant environ 120 a 130 % du pic observe sous charge normale, tout en garantissant que la somme des limites reste compatible avec le `ResourceQuota`. Si les mesures montrent un throttling CPU sur l'inference, la premiere correction sera de reduire la reservation du preprocessing ou du monitoring avant d'augmenter le nombre de workers.
+## Strategie de deploiement et CI/CD
 
-## Strategie de deploiement
+Nous retenons une strategie **Recreate** pour la premiere version. Un `RollingUpdate` avec `maxSurge: 1` sur le service d'inference demanderait temporairement un pod supplementaire de 1200m CPU et 512Mi. La marge memoire de 704Mi serait suffisante, mais la marge CPU de 850m ne couvrirait pas les 1200m requis. Le nouveau pod risquerait donc de rester en `Pending`. `Recreate` evite ce blocage au prix d'un court downtime, acceptable dans ce TP et plus robuste sur une machine inconnue lors de la correction.
 
-La strategie retenue pour la premiere version est **Recreate**. Avec l'estimation ci-dessus, un `RollingUpdate` de l'inference avec `maxSurge: 1` ajouterait temporairement un pod d'inference de 1200m CPU et 512Mi. La marge memoire de 704Mi permettrait ce surge, mais la marge CPU de 850m ne le permettrait pas. Le nouveau pod risquerait donc de rester en `Pending` a cause du quota. `Recreate` evite ce blocage en supprimant l'ancien pod avant de creer le nouveau. Le cout est un court downtime, acceptable pour ce TP, et ce choix est plus robuste sur une machine inconnue clonee par l'enseignant.
+Le pipeline CI/CD sera implemente avec **GitHub Actions**. Ce choix est justifie par son integration native au depot GitHub et par la gestion securisee des secrets Docker Hub. Le pipeline executera les tests avec un seuil de couverture de 80 %, bloquera le build si les tests echouent, puis construira et poussera les images Docker uniquement en cas de succes.
 
-## Consequences et validation
+## Validation prevue
 
-Cette architecture privilegie la reproductibilite et le respect du quota plutot qu'une scalabilite maximale. Elle est adaptee au cas churn car les modeles sont legers et parce que le point critique est le debit HTTP a 150 req/min. Le service d'inference sera lance avec plusieurs workers, par exemple 2 a 4 au depart, afin d'eviter un comportement Flask mono-threade. Le nombre exact sera ajuste pendant les tests de charge a partir de la latence moyenne, du P95, du taux de succes HTTP 200 et de la consommation observee avec `kubectl top pods`.
-
-La validation suivra le protocole du TP. En seance 2, les modeles seront entraines hors Minikube, les artefacts seront places dans `models/` et documentes dans `models/README.md` avec dataset, metrique, taille et temps d'inference local. En seance 3, les manifests `k8s/quota.yaml`, `k8s/limitrange.yaml`, `preprocessing.yaml`, `inference.yaml` et `monitoring.yaml` devront permettre un deploiement complet avec une seule commande. En seance 4, les niveaux nominal, charge et stress seront mesures avec le script fourni, puis la correction la plus impactante sera appliquee et mesuree avant/apres. Le stress test extreme restera optionnel ; si nous le tentons, nous documenterons le dernier palier avec plus de 80 % de succes, le point de rupture et la recuperation du systeme dans `STRESS_TEST.md`.
+Les modeles seront entraines hors Minikube, puis documentes dans `models/README.md` avec le dataset utilise, la metrique principale, la taille de l'artefact et le temps d'inference local. Les seances suivantes valideront l'architecture avec `docker-compose up --build`, puis avec `kubectl apply -f k8s/ -n projet-TRIGRAMME`. Les tests nominal, charge et stress mesureront le taux de succes HTTP 200, la latence moyenne, le P95, les erreurs et la consommation des pods. Si nous tentons le mode extreme, le point de rupture et la recuperation du systeme seront documentes dans `STRESS_TEST.md`.
