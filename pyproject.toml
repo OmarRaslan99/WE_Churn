@@ -1,0 +1,32 @@
+[project]
+name = "we-churn"
+version = "0.1.0"
+description = "TP orchestration ML - churn prediction and offer recommendation"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.115.12",
+    "uvicorn[standard]==0.34.2",
+    "gunicorn==23.0.0",
+    "pandas==2.2.3",
+    "numpy==2.2.5",
+    "scikit-learn==1.6.1",
+    "joblib==1.4.2",
+    "requests==2.32.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.5",
+    "pytest-cov==6.1.1",
+    "httpx==0.28.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--cov=services --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+omit = [
+    "*/__init__.py",
+]

@@ -1,0 +1,49 @@
+services:
+  preprocessing:
+    build:
+      context: .
+      dockerfile: services/preprocessing/Dockerfile
+    image: we-churn-preprocessing:0.1.0
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+  monitoring:
+    build:
+      context: .
+      dockerfile: services/monitoring/Dockerfile
+    image: we-churn-monitoring:0.1.0
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+
+  inference:
+    build:
+      context: .
+      dockerfile: services/inference/Dockerfile
+    image: we-churn-inference:0.1.0
+    ports:
+      - "8000:8000"
+    environment:
+      PREPROCESSING_URL: http://preprocessing:8001
+      MONITORING_URL: http://monitoring:8002
+      CHURN_THRESHOLD: "0.5"
+      MODEL_DIR: /app/models
+    depends_on:
+      preprocessing:
+        condition: service_healthy
+      monitoring:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3

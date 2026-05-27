@@ -1,0 +1,48 @@
+{
+  "dataset": "Telco Customer Churn IBM",
+  "source": "Kaggle / UCI ML Repository / GitHub public mirrors",
+  "license": "Public dataset for educational use",
+  "feature_columns": [
+    "Count",
+    "Country",
+    "State",
+    "City",
+    "Zip Code",
+    "Lat Long",
+    "Latitude",
+    "Longitude",
+    "Gender",
+    "Senior Citizen",
+    "Partner",
+    "Dependents",
+    "Tenure Months",
+    "Phone Service",
+    "Multiple Lines",
+    "Internet Service",
+    "Online Security",
+    "Online Backup",
+    "Device Protection",
+    "Tech Support",
+    "Streaming TV",
+    "Streaming Movies",
+    "Contract",
+    "Paperless Billing",
+    "Payment Method",
+    "Monthly Charges",
+    "Total Charges",
+    "CLTV"
+  ],
+  "churn_metrics": {
+    "accuracy": 0.748,
+    "f1": 0.6235,
+    "roc_auc": 0.8383
+  },
+  "offer_metrics": {
+    "accuracy": 0.814
+  },
+  "inference_time_ms_avg_local": 0.576,
+  "artifact_sizes_bytes": {
+    "churn_pipeline.pkl": 2536571,
+    "offer_pipeline.pkl": 3840483
+  }
+}
