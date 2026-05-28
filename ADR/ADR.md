@@ -1,4 +1,8 @@
-# Architecture Decision Record - Cas 3 : Prediction de churn et recommandation d'offre
+# Architecture Decision Record vivant - Cas 3 : Prediction de churn et recommandation d'offre
+
+**Statut :** vivant, a mettre a jour a chaque evolution structurante du projet  
+**Derniere mise a jour :** 2026-05-28  
+**Portee :** choix d'architecture, decisions remplacees, implementation, validation locale, Kubernetes et CI/CD
 
 ## Contexte et choix du cas d'usage
 
@@ -12,7 +16,7 @@ L'architecture respectera les trois services imposes : **preprocessing**, **infe
 
 Le service d'inference recevra la requete externe, appellera le service `preprocessing-svc` via le DNS interne Kubernetes pour valider et normaliser les donnees, puis executera la prediction de churn et la recommandation d'offre. Les services communiqueront via des objets `Service` de type `ClusterIP`, afin d'eviter toute dependance a `localhost` ou aux adresses IP ephemeres des pods. Le service de monitoring enregistrera au minimum le volume de requetes, les latences, les erreurs et les predictions principales, afin de rester exploitable pendant les tests de charge.
 
-Le premier modele sera un modele tabulaire leger, **XGBoost ou Random Forest**, entraine hors Minikube et versionne dans `models/`. Le deuxieme modele sera un classifieur multi-classes pour recommander une offre parmi 5 categories. Nous choisissons de charger ces deux modeles dans le meme service d'inference. Cette decision evite un quatrieme service Kubernetes, economise un environnement Python supplementaire, reduit les `requests` CPU/memoire et supprime un appel HTTP interne entre deux modeles. Le compromis est un couplage plus fort : les deux modeles seront redeployes et scales ensemble. Sous un quota de 1.5 Gi, ce compromis est acceptable.
+Le premier modele est un modele tabulaire leger. L'option initiale etait **XGBoost ou Random Forest** ; la V1 implemente finalement **RandomForestClassifier avec scikit-learn**, car cette solution est simple a containeriser, suffisante pour le TP, compatible avec les tests et plus prudente pour la taille des images. Le deuxieme modele est un classifieur multi-classes pour recommander une offre parmi 5 categories. Nous choisissons de charger ces deux modeles dans le meme service d'inference. Cette decision evite un quatrieme service Kubernetes, economise un environnement Python supplementaire, reduit les `requests` CPU/memoire et supprime un appel HTTP interne entre deux modeles. Le compromis est un couplage plus fort : les deux modeles seront redeployes et scales ensemble. Sous un quota de 1.5 Gi, ce compromis est acceptable.
 
 ## Dimensionnement initial et quota
 
@@ -37,3 +41,45 @@ Le pipeline CI/CD sera implemente avec **GitHub Actions**. Ce choix est justifie
 ## Validation prevue
 
 Les modeles seront entraines hors Minikube, puis documentes dans `models/README.md` avec le dataset utilise, la metrique principale, la taille de l'artefact et le temps d'inference local. Les seances suivantes valideront l'architecture avec `docker-compose up --build`, puis avec `kubectl apply -f k8s/ -n projet-TRIGRAMME`. Les tests nominal, charge et stress mesureront le taux de succes HTTP 200, la latence moyenne, le P95, les erreurs et la consommation des pods. Si nous tentons le mode extreme, le point de rupture et la recuperation du systeme seront documentes dans `STRESS_TEST.md`.
+
+## Journal des evolutions et decisions remplacees
+
+Cette section transforme l'ADR en document vivant. Toute nouvelle tache structurante doit ajouter une entree ici : ce qui a ete fait, pourquoi, ce qui a ete remplace, et comment la decision sera verifiee.
+
+### 2026-05-26 - ADR initial et fusion avec la version du binome
+
+L'ADR initial a ete construit a partir de `Docs/TP.md`, `Docs/Cours.md`, `Docs/Grille de notation.md`, `Docs/Challenge stress test.md` et du script de charge. Une version alternative fournie par le binome proposait un `RollingUpdate` valide sur la seule marge memoire. Ce raisonnement a ete remplace par un calcul CPU + memoire : avec `1200m` CPU demandes par l'inference et seulement `850m` de marge CPU estimee, un `maxSurge: 1` peut bloquer le nouveau pod en `Pending`. La decision finale retient donc `Recreate` pour l'inference tant que des mesures reelles ne prouvent pas que `RollingUpdate` tient dans le quota.
+
+Le deuxieme modele a ete maintenu dans le service d'inference principal. L'alternative d'un quatrieme service reste plus decouplee, mais elle ajoute un environnement Python, des `requests` supplementaires et un appel reseau interne. Sous `1.5 Gi`, le couplage est accepte.
+
+### 2026-05-27 - Seance 2 : entrainement, services, Docker Compose et tests
+
+L'environnement projet a ete standardise avec `uv` via `pyproject.toml` et `uv.lock`, afin de rendre l'installation reproductible. Le dataset IBM telecharge utilise le schema enrichi avec `CustomerID`, `Churn Label`, `Churn Value`, `Churn Score` et `Churn Reason`, alors que le script fourni mentionne plutot `customerID` et `Churn`. Le preprocessing a donc ete concu pour ignorer les deux familles de colonnes identifiantes/cibles et eviter toute fuite de cible vers le modele.
+
+FastAPI a ete retenu pour les trois services au lieu d'un service Flask generique, car il facilite les endpoints `/health`, les tests avec `TestClient` et la validation du contrat HTTP. Trois services ont ete implementes : `preprocessing` expose `POST /preprocess`, `inference` expose `POST /predict`, et `monitoring` expose `POST /events` ainsi que `/metrics` et `/summary`. Le monitoring est volontairement en memoire pour la V1 : c'est suffisant pour la seance 2 et le stress test local, mais il pourra etre remplace par un stockage plus robuste si le besoin apparait.
+
+Les artefacts generes sont `models/churn_pipeline.pkl`, `models/offer_pipeline.pkl` et `models/model_metadata.json`. Les resultats locaux actuels sont : churn accuracy `0.748`, F1 `0.6235`, ROC-AUC `0.8383`; recommandation accuracy `0.814`; temps d'inference local moyen `0.576 ms` par ligne. Ces valeurs remplacent l'estimation abstraite de la seance 1 et sont documentees dans `models/README.md`.
+
+Docker Compose a ete ajoute pour lancer les trois services localement. La validation locale a confirme que `/predict` renvoie HTTP 200 avec `churn_probability` et `recommended_offer`, que le monitoring recoit les evenements, et qu'un test de charge court du script fourni obtient 100 % de succes. Un blocage externe a ete observe pendant `docker compose up --build` : Docker Hub a renvoye `429 Too Many Requests` lors du pull de `python:3.12-slim`. Ce n'est pas une decision d'architecture ; la mitigation est `docker login` ou relance apres expiration de la limite.
+
+Les tests sont executes avec `pytest` et `pytest-cov`. La couverture actuelle est `80.35 %`, donc le seuil TP de `80 %` est atteint. Les cibles partielles `make test-preprocessing` et `make test-services` ont ete corrigees pour ne pas appliquer le seuil global de couverture lorsqu'on lance seulement un sous-ensemble.
+
+### 2026-05-27 - Makefile comme point d'entree reproductible
+
+Un `Makefile` a ete ajoute pour regrouper les commandes de travail et de correction : `make setup`, `make train`, `make test`, `make run`, `make smoke`, `make load-test`, `make docker-push`. Cette decision remplace les commandes eparses du README par une interface unique, plus simple pour le binome et pour l'enseignant apres un `git clone`. Le README conserve les commandes detaillees, mais le Makefile devient le point d'entree privilegie.
+
+### 2026-05-28 - Seance 3 : Kubernetes, quota et CI/CD
+
+Les manifests Kubernetes ont ete ajoutes dans `k8s/`. Le namespace cible est `projet-TRIGRAMME`. Le quota du cas 3 est encode dans `k8s/quota.yaml` : `2500m` CPU et `1536Mi` memoire pour requests et limits. `k8s/limitrange.yaml` ajoute des valeurs par defaut et des bornes par conteneur pour eviter des pods sans ressources explicites.
+
+Les services internes `preprocessing-svc` et `monitoring-svc` restent en `ClusterIP`. `inference-svc` est en `NodePort` afin que `minikube service inference-svc -n projet-TRIGRAMME --url` retourne directement une URL utilisable par `scripts/load_test.py`. Les variables Kubernetes de l'inference sont alignees avec Docker Compose : `PREPROCESSING_URL=http://preprocessing-svc:8001`, `MONITORING_URL=http://monitoring-svc:8002`, `MODEL_DIR=/app/models`, `CHURN_THRESHOLD=0.5`.
+
+Les valeurs Kubernetes initiales sont maintenant plus completes que l'estimation ADR de seance 1, car elles incluent aussi les limits : preprocessing `300m/192Mi` requests et `500m/256Mi` limits, inference `1200m/512Mi` requests et `1500m/640Mi` limits, monitoring `150m/128Mi` requests et `250m/192Mi` limits. Le total est `1650m CPU` et `832Mi` en requests, `2250m CPU` et `1088Mi` en limits. La marge restante est donc `850m/704Mi` sur requests et `250m/448Mi` sur limits. Ces valeurs restent provisoires jusqu'aux vraies mesures `kubectl top pods`.
+
+Un validateur hors-ligne `scripts/validate_k8s_yaml.py` a ete ajoute, car `kubectl apply --dry-run=client` tente tout de meme de joindre le cluster pour reconnaitre les types Kubernetes. La cible `make k8s-dry-run` verifie donc la syntaxe YAML, les champs obligatoires et la somme des ressources sans cluster actif. La cible `make k8s-server-dry-run` reste disponible quand Minikube tourne.
+
+Le workflow `.github/workflows/ci.yml` a ete ajoute. Il execute `uv sync --frozen`, regenere les modeles, lance `uv run pytest --cov`, puis construit et pousse les images Docker Hub uniquement sur `main` et uniquement si les tests passent. Les secrets requis sont `DOCKER_USERNAME` et `DOCKER_TOKEN`. Les avertissements VS Code sur ces secrets ne bloquent pas le projet : ils disparaitront lorsque les secrets seront definis dans GitHub Actions.
+
+### Points ouverts a mettre a jour apres execution reelle
+
+Les images Docker Hub `omarraslan99/we-churn-*:v0.1.0-seance3` doivent etre poussees ou remplacees par le vrai identifiant Docker Hub du binome. Une fois Minikube demarre, il faudra executer `make k8s-deploy`, `make k8s-rollout`, `make k8s-status`, `make k8s-url`, puis un test `make smoke URL=<URL_MINIKUBE>/predict`. Les sorties `kubectl get all -n projet-TRIGRAMME`, `kubectl top pods -n projet-TRIGRAMME` et `kubectl describe resourcequota -n projet-TRIGRAMME` doivent etre reportees dans `k8s/RESOURCE_MEASUREMENTS.md`. Les valeurs de `requests` et `limits` devront ensuite etre ajustees si les pics observes different des estimations actuelles.
