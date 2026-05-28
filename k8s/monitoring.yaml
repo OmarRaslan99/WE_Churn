@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitoring
+  labels:
+    app: monitoring
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: we-churn
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monitoring
+  template:
+    metadata:
+      labels:
+        app: monitoring
+        app.kubernetes.io/name: monitoring
+        app.kubernetes.io/part-of: we-churn
+    spec:
+      containers:
+        - name: monitoring
+          image: omarraslan99/we-churn-monitoring:v0.1.0-seance3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8002
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "192Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-svc
+  labels:
+    app: monitoring
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/part-of: we-churn
+spec:
+  type: ClusterIP
+  selector:
+    app: monitoring
+  ports:
+    - name: http
+      port: 8002
+      targetPort: 8002

@@ -12,6 +12,7 @@ dependencies = [
     "scikit-learn==1.6.1",
     "joblib==1.4.2",
     "requests==2.32.3",
+    "PyYAML==6.0.3",
 ]
 
 [dependency-groups]

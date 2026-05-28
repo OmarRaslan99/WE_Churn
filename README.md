@@ -49,6 +49,51 @@ make smoke
 make load-test
 ```
 
+## Deploiement Kubernetes
+
+Les manifests Kubernetes sont dans `k8s/`. Par defaut, ils referencent les images Docker Hub `omarraslan99/we-churn-*:v0.1.0-seance3`. Si votre identifiant Docker Hub est different, remplacez `omarraslan99` dans les manifests `k8s/*.yaml` et lancez `make docker-push DOCKER_USER=<dockerhub-user>` avec le meme nom.
+
+Demarrage Minikube et deploiement complet :
+
+```powershell
+make minikube-start
+make k8s-deploy
+make k8s-rollout
+make k8s-status
+```
+
+Equivalent manuel :
+
+```powershell
+minikube start --cpus=4 --memory=6144 --driver=docker
+minikube addons enable metrics-server
+kubectl apply -f k8s/00-namespace.yaml
+kubectl apply -f k8s/ -n projet-TRIGRAMME
+kubectl get all -n projet-TRIGRAMME
+```
+
+Recuperer l'URL du service d'inference :
+
+```powershell
+make k8s-url
+```
+
+Tester l'API Kubernetes :
+
+```powershell
+make smoke URL=<URL_MINIKUBE>/predict
+make load-test URL=<URL_MINIKUBE>/predict DURATION=60
+```
+
+Mesurer les ressources pour justifier `requests` et `limits` :
+
+```powershell
+make k8s-top
+make k8s-quota
+```
+
+Les mesures et la justification sont a reporter dans [k8s/RESOURCE_MEASUREMENTS.md](k8s/RESOURCE_MEASUREMENTS.md).
+
 ## Entrainement
 
 Les modeles sont entraines hors Minikube a partir de `data/churn.csv`. Les artefacts sont generes dans `models/` :
@@ -69,10 +114,17 @@ Les modeles sont entraines hors Minikube a partir de `data/churn.csv`. Les artef
 Pour tagger et pousser les images apres connexion Docker Hub :
 
 ```powershell
-docker tag we-churn-preprocessing:0.1.0 <dockerhub-user>/we-churn-preprocessing:v0.1.0-seance2
-docker tag we-churn-inference:0.1.0 <dockerhub-user>/we-churn-inference:v0.1.0-seance2
-docker tag we-churn-monitoring:0.1.0 <dockerhub-user>/we-churn-monitoring:v0.1.0-seance2
-docker push <dockerhub-user>/we-churn-preprocessing:v0.1.0-seance2
-docker push <dockerhub-user>/we-churn-inference:v0.1.0-seance2
-docker push <dockerhub-user>/we-churn-monitoring:v0.1.0-seance2
+make build
+make docker-push DOCKER_USER=<dockerhub-user>
 ```
+
+## CI/CD GitHub Actions
+
+Le workflow `.github/workflows/ci.yml` execute les tests avec couverture 80 %, entraine les modeles pour verifier la reproductibilite, puis construit et pousse les trois images Docker Hub uniquement sur `main` si les tests passent.
+
+Secrets GitHub requis :
+
+- `DOCKER_USERNAME`
+- `DOCKER_TOKEN`
+
+Le push Docker est conditionne a la reussite du job de tests, ce qui evite de publier une image si la couverture ou les tests echouent.
