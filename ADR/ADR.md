@@ -1,7 +1,7 @@
 # Architecture Decision Record vivant - Cas 3 : Prediction de churn et recommandation d'offre
 
 **Statut :** vivant, a mettre a jour a chaque evolution structurante du projet  
-**Derniere mise a jour :** 2026-05-28  
+**Derniere mise a jour :** 2026-05-29 (Seance 4 - challenge de charge execute et correction deployee)  
 **Portee :** choix d'architecture, decisions remplacees, implementation, validation locale, Kubernetes et CI/CD
 
 ## Contexte et choix du cas d'usage
@@ -12,7 +12,7 @@ Le besoin metier est d'identifier les clients a risque de resiliation et de prop
 
 ## Architecture retenue
 
-L'architecture respectera les trois services imposes : **preprocessing**, **inference** et **monitoring**, tous containerises et deployes dans le namespace `projet-TRIGRAMME`. Le script de charge appellera le service expose `inference-svc` via `minikube service inference-svc -n projet-TRIGRAMME --url`. L'endpoint public sera `POST /predict`; il recevra un JSON contenant les colonnes du dataset Telco sans `Churn` ni `customerID`, puis retournera une reponse de type `{"churn_probability": 0.74, "recommended_offer": "remise_tarifaire"}`.
+L'architecture respectera les trois services imposes : **preprocessing**, **inference** et **monitoring**, tous containerises et deployes dans le namespace `projet-we`. Le script de charge appellera le service expose `inference-svc` via `minikube service inference-svc -n projet-we --url`. L'endpoint public sera `POST /predict`; il recevra un JSON contenant les colonnes du dataset Telco sans `Churn` ni `customerID`, puis retournera une reponse de type `{"churn_probability": 0.74, "recommended_offer": "remise_tarifaire"}`.
 
 Le service d'inference recevra la requete externe, appellera le service `preprocessing-svc` via le DNS interne Kubernetes pour valider et normaliser les donnees, puis executera la prediction de churn et la recommandation d'offre. Les services communiqueront via des objets `Service` de type `ClusterIP`, afin d'eviter toute dependance a `localhost` ou aux adresses IP ephemeres des pods. Le service de monitoring enregistrera au minimum le volume de requetes, les latences, les erreurs et les predictions principales, afin de rester exploitable pendant les tests de charge.
 
@@ -40,7 +40,7 @@ Le pipeline CI/CD sera implemente avec **GitHub Actions**. Ce choix est justifie
 
 ## Validation prevue
 
-Les modeles seront entraines hors Minikube, puis documentes dans `models/README.md` avec le dataset utilise, la metrique principale, la taille de l'artefact et le temps d'inference local. Les seances suivantes valideront l'architecture avec `docker-compose up --build`, puis avec `kubectl apply -f k8s/ -n projet-TRIGRAMME`. Les tests nominal, charge et stress mesureront le taux de succes HTTP 200, la latence moyenne, le P95, les erreurs et la consommation des pods. Si nous tentons le mode extreme, le point de rupture et la recuperation du systeme seront documentes dans `STRESS_TEST.md`.
+Les modeles seront entraines hors Minikube, puis documentes dans `models/README.md` avec le dataset utilise, la metrique principale, la taille de l'artefact et le temps d'inference local. Les seances suivantes valideront l'architecture avec `docker-compose up --build`, puis avec `kubectl apply -f k8s/ -n projet-we`. Les tests nominal, charge et stress mesureront le taux de succes HTTP 200, la latence moyenne, le P95, les erreurs et la consommation des pods. Si nous tentons le mode extreme, le point de rupture et la recuperation du systeme seront documentes dans `STRESS_TEST.md`.
 
 ## Journal des evolutions et decisions remplacees
 
@@ -70,9 +70,9 @@ Un `Makefile` a ete ajoute pour regrouper les commandes de travail et de correct
 
 ### 2026-05-28 - Seance 3 : Kubernetes, quota et CI/CD
 
-Les manifests Kubernetes ont ete ajoutes dans `k8s/`. Le namespace cible est `projet-TRIGRAMME`. Le quota du cas 3 est encode dans `k8s/quota.yaml` : `2500m` CPU et `1536Mi` memoire pour requests et limits. `k8s/limitrange.yaml` ajoute des valeurs par defaut et des bornes par conteneur pour eviter des pods sans ressources explicites.
+Les manifests Kubernetes ont ete ajoutes dans `k8s/`. Le namespace cible est `projet-we`. Le quota du cas 3 est encode dans `k8s/quota.yaml` : `2500m` CPU et `1536Mi` memoire pour requests et limits. `k8s/limitrange.yaml` ajoute des valeurs par defaut et des bornes par conteneur pour eviter des pods sans ressources explicites.
 
-Les services internes `preprocessing-svc` et `monitoring-svc` restent en `ClusterIP`. `inference-svc` est en `NodePort` afin que `minikube service inference-svc -n projet-TRIGRAMME --url` retourne directement une URL utilisable par `scripts/load_test.py`. Les variables Kubernetes de l'inference sont alignees avec Docker Compose : `PREPROCESSING_URL=http://preprocessing-svc:8001`, `MONITORING_URL=http://monitoring-svc:8002`, `MODEL_DIR=/app/models`, `CHURN_THRESHOLD=0.5`.
+Les services internes `preprocessing-svc` et `monitoring-svc` restent en `ClusterIP`. `inference-svc` est en `NodePort` afin que `minikube service inference-svc -n projet-we --url` retourne directement une URL utilisable par `scripts/load_test.py`. Les variables Kubernetes de l'inference sont alignees avec Docker Compose : `PREPROCESSING_URL=http://preprocessing-svc:8001`, `MONITORING_URL=http://monitoring-svc:8002`, `MODEL_DIR=/app/models`, `CHURN_THRESHOLD=0.5`.
 
 Les valeurs Kubernetes initiales sont maintenant plus completes que l'estimation ADR de seance 1, car elles incluent aussi les limits : preprocessing `300m/192Mi` requests et `500m/256Mi` limits, inference `1200m/512Mi` requests et `1500m/640Mi` limits, monitoring `150m/128Mi` requests et `250m/192Mi` limits. Le total est `1650m CPU` et `832Mi` en requests, `2250m CPU` et `1088Mi` en limits. La marge restante est donc `850m/704Mi` sur requests et `250m/448Mi` sur limits. Ces valeurs restent provisoires jusqu'aux vraies mesures `kubectl top pods`.
 
@@ -80,6 +80,30 @@ Un validateur hors-ligne `scripts/validate_k8s_yaml.py` a ete ajoute, car `kubec
 
 Le workflow `.github/workflows/ci.yml` a ete ajoute. Il execute `uv sync --frozen`, regenere les modeles, lance `uv run pytest --cov`, puis construit et pousse les images Docker Hub uniquement sur `main` et uniquement si les tests passent. Les secrets requis sont `DOCKER_USERNAME` et `DOCKER_TOKEN`. Les avertissements VS Code sur ces secrets ne bloquent pas le projet : ils disparaitront lorsque les secrets seront definis dans GitHub Actions.
 
-### Points ouverts a mettre a jour apres execution reelle
+### 2026-05-29 - Seance 4 : instrumentation du challenge de charge
 
-Les images Docker Hub `omarraslan99/we-churn-*:v0.1.0-seance3` doivent etre poussees ou remplacees par le vrai identifiant Docker Hub du binome. Une fois Minikube demarre, il faudra executer `make k8s-deploy`, `make k8s-rollout`, `make k8s-status`, `make k8s-url`, puis un test `make smoke URL=<URL_MINIKUBE>/predict`. Les sorties `kubectl get all -n projet-TRIGRAMME`, `kubectl top pods -n projet-TRIGRAMME` et `kubectl describe resourcequota -n projet-TRIGRAMME` doivent etre reportees dans `k8s/RESOURCE_MEASUREMENTS.md`. Les valeurs de `requests` et `limits` devront ensuite etre ajustees si les pics observes different des estimations actuelles.
+La seance 4 exige des preuves exploitables sous charge : resultats du script enseignant, releves `kubectl top pods` toutes les 30 secondes, events Kubernetes, logs, restarts et tableau avant/apres correction. Le script `scripts/load_test.py` conserve donc son usage initial, mais archive maintenant chaque execution en JSON dans `results/load_tests/` avec timestamps, codes HTTP, latences moyenne/P95/max et metadata d'execution. Les colonnes cible/id du dataset churn enrichi sont aussi ignorees pendant le test de charge, comme dans le preprocessing et le smoke test.
+
+Le monitoring a ete enrichi sans ajouter de nouveau service : les evenements recoivent un timestamp UTC, les metriques exposent P95, codes HTTP, succes, erreurs, uptime et un export limite des evenements recents. Un endpoint de reset permet d'isoler chaque palier nominal, charge ou stress. L'alternative d'ajouter Prometheus/Grafana ou une base persistante a ete rejetee pour cette V1, car elle augmenterait le nombre de pods et la consommation sous le quota `2500m CPU / 1536Mi`.
+
+Un orchestrateur `scripts/run_load_challenge.py` automatise le protocole Minikube : lancement d'un palier, collecte parallele `kubectl top pods`, snapshots Kubernetes avant/apres, logs et metriques monitoring. Le vrai challenge reste local sur Minikube, car GitHub Actions standard ne donne pas les mesures `kubectl top pods` du namespace du TP. La pipeline integre toutefois un test de charge court via Docker Compose afin de detecter les regressions API/Docker : smoke test puis charge nominale courte avec seuils de succes et P95, et upload des resultats comme artifacts.
+
+La correction de performance n'est pas encore figee dans l'ADR, car elle doit etre choisie apres les vraies mesures. La regle retenue est d'appliquer une seule correction mesurable au palier critique, par exemple ajuster les workers Gunicorn, redistribuer les ressources entre services ou limiter un comportement monitoring couteux, puis de verifier a nouveau le quota et de relancer uniquement le niveau problematique.
+
+### 2026-05-29 - Seance 4 : correction de performance apres mesures reelles
+
+Les trois paliers ont ete executes sur Minikube (Docker driver, namespace `projet-we`) avec `kubectl port-forward`. Resultats avant correction :
+
+- Nominal (10 req/min, 300s) : 50/50 req, 100%, avg 0.181s, P95 0.297s, CPU inference pic 40m.
+- Charge (50 req/min, 300s) : 250/250 req, 100%, avg 0.200s, P95 0.375s, CPU inference pic 187m.
+- Stress (150 req/min, 300s) : 748/748 req, 100%, avg 0.202s, P95 0.375s, CPU inference pic **417m**.
+
+Goulot identifie : sous stress, l'inference consommait 417m CPU alors que le `request` etait surdimensionne a 1200m. Avec seulement 2 workers Gunicorn, les bursts creaient une file d'attente causant une latence max de 1.609s. La memoire restait stable (275Mi max), donc le goulot etait CPU/concurrence.
+
+Correction choisie (une seule, conformement au protocole) : augmenter les workers Gunicorn de 2 a **4** via override `command` dans `k8s/inference.yaml`, et right-sizer les ressources inference a `request 500m / limit 1000m`. Le scaling horizontal (replicas=2) a ete rejete car il aurait depasse le quota CPU.
+
+Resultats apres correction - palier stress (150 req/min, 300s) : 748/748 req, 100%, avg **0.158s** (-22%), P95 **0.313s** (-17%), CPU pic 408m. La quota check confirme 950m/1750m (< 2500m). La correction est validee et conservee en production Minikube.
+
+### Points resolus en Seance 4
+
+Les images Docker Hub `omarraslan99/we-churn-*:v0.1.0-seance3` sont utilisees avec `imagePullPolicy: IfNotPresent`. Le challenge de charge complet a ete execute sur Minikube le 2026-05-29. Les mesures `kubectl top pods` sont reportees dans `k8s/RESOURCE_MEASUREMENTS.md`. Les ressources inference ont ete ajustees apres mesures reelles (request 500m, limit 1000m, 4 workers). Le quota final utilise 950m/1750m CPU requests/limits, bien sous les 2500m autorises. Le tableau avant/apres est dans `results/seance4/comparison_stress.md`.

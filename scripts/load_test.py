@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-load_test.py  -  Script de charge fourni par l'enseignant.
-Ne pas modifier.
+load_test.py  -  Script de charge fourni par l'enseignant, etendu pour
+archiver les resultats de la seance 4.
 
 Usage :
   python scripts/load_test.py --case images  --level nominal --url http://HOST:PORT/predict
@@ -19,8 +19,12 @@ import csv
 import json
 import os
 import random
+import socket
+import subprocess
 import sys
 import time
+from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -44,6 +48,16 @@ DATA_PATHS = {
     "images": DATA_ROOT / "images",
     "text":   DATA_ROOT / "comments.csv",
     "churn":  DATA_ROOT / "churn.csv",
+}
+
+IGNORED_CHURN_COLUMNS = {
+    "CustomerID",
+    "customerID",
+    "Churn",
+    "Churn Label",
+    "Churn Value",
+    "Churn Score",
+    "Churn Reason",
 }
 
 # ---------------------------------------------------------------------------
@@ -123,11 +137,9 @@ def load_data(case: str) -> list:
         path = DATA_PATHS["churn"]
         if not path.exists():
             sys.exit(f"[ERREUR] Fichier CSV introuvable : {path}")
-        # Colonnes à exclure (cible + identifiant)
-        EXCLUDE = {"Churn", "customerID"}
         with open(path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            rows = [{k: v for k, v in row.items() if k not in EXCLUDE}
+            rows = [{k: v for k, v in row.items() if k not in IGNORED_CHURN_COLUMNS}
                     for row in reader]
         if not rows:
             sys.exit("[ERREUR] Aucune ligne trouvée dans churn.csv")
@@ -170,6 +182,7 @@ def run_test(case: str, rate: int, duration: int, url: str) -> dict:
     futures = []
     statuses = []
     latencies = []
+    started_at = datetime.now(timezone.utc)
 
     print(f"[TEST] case={case}  rate={rate} req/min  duration={duration}s")
     print(f"[TEST] URL : {url}")
@@ -193,6 +206,8 @@ def run_test(case: str, rate: int, duration: int, url: str) -> dict:
     n = len(latencies)
     n200 = statuses.count(200)
     sorted_lat = sorted(latencies)
+    status_counts = Counter(str(status) for status in statuses)
+    ended_at = datetime.now(timezone.utc)
 
     results = {
         "case":            case,
@@ -208,6 +223,10 @@ def run_test(case: str, rate: int, duration: int, url: str) -> dict:
         "latency_avg_s":   round(sum(latencies) / n, 3) if n else 0,
         "latency_p95_s":   round(sorted_lat[max(0, int(0.95 * n) - 1)], 3) if n else 0,
         "latency_max_s":   round(sorted_lat[-1], 3) if n else 0,
+        "status_counts":    dict(sorted(status_counts.items())),
+        "started_at_utc":   started_at.isoformat(),
+        "ended_at_utc":     ended_at.isoformat(),
+        "url":              url,
     }
     return results
 
@@ -225,7 +244,48 @@ def print_results(r: dict) -> None:
     print(f"  Latence moyenne   : {r['latency_avg_s']}s")
     print(f"  Latence P95       : {r['latency_p95_s']}s")
     print(f"  Latence max       : {r['latency_max_s']}s")
+    print(f"  Codes HTTP        : {r.get('status_counts', {})}")
     print("=" * 55)
+
+
+def git_commit() -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return completed.stdout.strip() or None
+
+
+def save_results(results: dict, output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_level = str(results["level"]).replace(" ", "_").replace("=", "-").replace("(", "").replace(")", "")
+    output_path = output_dir / f"{results['case']}_{safe_level}_{timestamp}.json"
+    archived = {
+        **results,
+        "archived_at_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit": git_commit(),
+        "hostname": socket.gethostname(),
+    }
+    output_path.write_text(json.dumps(archived, indent=2, ensure_ascii=False), encoding="utf-8")
+    return output_path
+
+
+def enforce_thresholds(results: dict, min_success_rate: float | None, max_p95_s: float | None) -> None:
+    failures = []
+    if min_success_rate is not None and results["success_rate_pct"] < min_success_rate:
+        failures.append(
+            f"success_rate_pct={results['success_rate_pct']} < min_success_rate={min_success_rate}"
+        )
+    if max_p95_s is not None and results["latency_p95_s"] > max_p95_s:
+        failures.append(f"latency_p95_s={results['latency_p95_s']} > max_p95_s={max_p95_s}")
+    if failures:
+        raise SystemExit("[ERREUR] Seuils de charge non respectes: " + "; ".join(failures))
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +325,28 @@ def parse_args():
         default=300,
         help="Durée du test en secondes (défaut : 300)"
     )
+    parser.add_argument(
+        "--output-dir",
+        default="results/load_tests",
+        help="Répertoire d'archivage JSON des résultats"
+    )
+    parser.add_argument(
+        "--no-save",
+        action="store_true",
+        help="Ne pas archiver les résultats JSON"
+    )
+    parser.add_argument(
+        "--min-success-rate",
+        type=float,
+        default=None,
+        help="Echouer si le taux de succes est inferieur a cette valeur"
+    )
+    parser.add_argument(
+        "--max-p95-s",
+        type=float,
+        default=None,
+        help="Echouer si la latence P95 depasse cette valeur en secondes"
+    )
     return parser.parse_args()
 
 
@@ -284,6 +366,10 @@ def main():
         url=args.url,
     )
     print_results(results)
+    if not args.no_save:
+        output_path = save_results(results, Path(args.output_dir))
+        print(f"[ARCHIVE] Resultats JSON : {output_path}")
+    enforce_thresholds(results, args.min_success_rate, args.max_p95_s)
 
 
 if __name__ == "__main__":

@@ -49,19 +49,25 @@ uv run python scripts/load_test.py --case churn --level nominal --url <URL_MINIK
 Pendant le test, relever les pics toutes les 30 secondes :
 
 ```powershell
-kubectl top pods -n projet-TRIGRAMME
+kubectl top pods -n projet-we
 ```
 
 ## Mesures observees
 
 | Date | Niveau | Pod | CPU observe | Memoire observee | Commentaire |
 | --- | --- | --- | ---: | ---: | --- |
-| A completer | repos | preprocessing |  |  |  |
-| A completer | repos | inference |  |  |  |
-| A completer | repos | monitoring |  |  |  |
-| A completer | nominal | preprocessing |  |  |  |
-| A completer | nominal | inference |  |  |  |
-| A completer | nominal | monitoring |  |  |  |
+| 2026-05-29 | repos | preprocessing | 3m | 62Mi | idle avant charge |
+| 2026-05-29 | repos | inference | 9m | 272Mi | idle avant charge |
+| 2026-05-29 | repos | monitoring | 3m | 33Mi | idle avant charge |
+| 2026-05-29 | nominal (10 req/min) | preprocessing | 4m | 62Mi | pic nominal |
+| 2026-05-29 | nominal (10 req/min) | inference | 40m | 273Mi | pic nominal |
+| 2026-05-29 | nominal (10 req/min) | monitoring | 4m | 33Mi | pic nominal |
+| 2026-05-29 | charge (50 req/min) | preprocessing | 7m | 62Mi | pic charge |
+| 2026-05-29 | charge (50 req/min) | inference | 187m | 273Mi | pic charge |
+| 2026-05-29 | charge (50 req/min) | monitoring | 6m | 33Mi | pic charge |
+| 2026-05-29 | stress (150 req/min) | preprocessing | 11m | 62Mi | pic stress avant correction |
+| 2026-05-29 | stress (150 req/min) | inference | 417m | 275Mi | pic stress avant correction |
+| 2026-05-29 | stress (150 req/min) | monitoring | 10m | 33Mi | pic stress avant correction |
 
 ## Regle d'ajustement
 
@@ -70,3 +76,43 @@ Apres mesure, fixer approximativement :
 - `requests` a 70-80 % du pic observe sous charge nominale.
 - `limits` a 120-130 % du pic observe.
 - La somme finale doit rester sous 2500m CPU et 1536Mi memoire pour requests et limits.
+
+## Seance 4 - Protocole de charge
+
+Les tests seance 4 doivent etre lances contre l'URL Minikube de `inference-svc` :
+
+```powershell
+$url = "<URL_MINIKUBE>/predict"
+make challenge-nominal URL=$url
+make challenge-charge URL=$url
+make challenge-stress URL=$url
+```
+
+Chaque execution cree un dossier `results/seance4/<timestamp>_<niveau>/` contenant :
+
+- le resultat JSON du test de charge ;
+- les echantillons `kubectl top pods` toutes les 30 secondes ;
+- les sorties `kubectl get`, `describe`, `events`, `resourcequota` ;
+- les logs recents des services ;
+- les metriques monitoring avant/apres.
+
+## Seance 4 - Mesures avant correction
+
+| Date | Niveau | Success rate | Latence avg | Latence P95 | Pod critique | CPU max | Memoire max | Restarts | Observation |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | --- |
+| 2026-05-29 | nominal (10 req/min) | 100% | 0.181s | 0.297s | inference | 40m | 273Mi | 0 | Aucune saturation |
+| 2026-05-29 | charge (50 req/min) | 100% | 0.200s | 0.375s | inference | 187m | 273Mi | 0 | CPU monte, latence stable |
+| 2026-05-29 | stress (150 req/min) | 100% | 0.202s | 0.375s | inference | 417m | 275Mi | 0 | CPU pic 417m, max 1.609s - goulot identifie |
+
+## Seance 4 - Correction appliquee
+
+- Symptome principal observe : sous stress (150 req/min), inference CPU pic a 417m (35% du request de 1200m). Avec 2 workers Gunicorn, les bursts creent une file d'attente, causant des pointes de latence (max 1.609s).
+- Correction choisie : augmentation de 2 a **4 workers Gunicorn** (via `command` override dans `k8s/inference.yaml`) + right-sizing CPU request de 1200m a **500m** et limit de 1500m a **1000m**.
+- Alternative rejetee : scaling horizontal (replicas=2) - impossible dans le quota actuel (depasserait 2500m CPU requests).
+- Verification quota : `uv run python scripts/validate_k8s_yaml.py` => 950m requests / 1750m limits (OK < 2500m).
+
+## Seance 4 - Mesures apres correction
+
+| Niveau relance | Success rate avant | Success rate apres | P95 avant | P95 apres | CPU max avant | CPU max apres | Conclusion |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| stress (150 req/min) | 100% | 100% | 0.375s | 0.313s | 417m | 408m | P95 -16.5%, avg -21.8% : amelioration confirmee |

@@ -22,6 +22,23 @@ def collect_event(event: dict[str, Any]) -> dict[str, str]:
     return {"status": "recorded"}
 
 
+@app.get("/events")
+def events(limit: int = 100) -> dict[str, Any]:
+    return {"events": store.events(limit=limit)}
+
+
+@app.delete("/events")
+def clear_events() -> dict[str, str]:
+    store.reset()
+    return {"status": "reset"}
+
+
+@app.post("/reset")
+def reset() -> dict[str, str]:
+    store.reset()
+    return {"status": "reset"}
+
+
 @app.get("/metrics")
 def metrics() -> dict[str, Any]:
     return store.summary()

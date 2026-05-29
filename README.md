@@ -42,6 +42,12 @@ Lancer un test de charge court contre Docker Compose :
 uv run python scripts/load_test.py --case churn --level nominal --duration 30 --url http://localhost:8000/predict
 ```
 
+Les resultats sont archives automatiquement en JSON dans `results/load_tests/`. Pour imposer un seuil lors d'une verification locale ou CI :
+
+```powershell
+uv run python scripts/load_test.py --case churn --level nominal --duration 30 --url http://localhost:8000/predict --min-success-rate 95 --max-p95-s 2
+```
+
 Equivalent via le `Makefile` :
 
 ```powershell
@@ -68,8 +74,8 @@ Equivalent manuel :
 minikube start --cpus=4 --memory=6144 --driver=docker
 minikube addons enable metrics-server
 kubectl apply -f k8s/00-namespace.yaml
-kubectl apply -f k8s/ -n projet-TRIGRAMME
-kubectl get all -n projet-TRIGRAMME
+kubectl apply -f k8s/ -n projet-we
+kubectl get all -n projet-we
 ```
 
 Recuperer l'URL du service d'inference :
@@ -93,6 +99,37 @@ make k8s-quota
 ```
 
 Les mesures et la justification sont a reporter dans [k8s/RESOURCE_MEASUREMENTS.md](k8s/RESOURCE_MEASUREMENTS.md).
+
+## Seance 4 - Challenge de charge
+
+Le protocole complet doit etre execute sur Minikube, car il depend de `kubectl top pods`, du namespace `projet-we` et du quota Kubernetes. Avant de lancer les paliers, verifier que les services sont disponibles :
+
+```powershell
+make minikube-start
+make k8s-deploy
+make k8s-rollout
+make k8s-status
+$url = "<URL_MINIKUBE>/predict"
+make smoke URL=$url
+```
+
+Lancer ensuite les trois niveaux imposes, chacun avec collecte `kubectl top pods` toutes les 30 secondes et archivage des diagnostics :
+
+```powershell
+make challenge-nominal URL=$url
+make challenge-charge URL=$url
+make challenge-stress URL=$url
+```
+
+Chaque execution cree un dossier `results/seance4/<timestamp>_<niveau>/` avec le JSON du test, les echantillons CPU/memoire, les events Kubernetes, les logs et les metriques monitoring. Apres identification du palier critique, appliquer une seule correction, redeployer, puis relancer uniquement ce palier.
+
+Pour generer le tableau avant/apres :
+
+```powershell
+make challenge-compare BEFORE=<avant.json> AFTER=<apres.json> COMPARE_OUTPUT=results/seance4/comparison.md
+```
+
+Les conclusions finales doivent etre reportees dans [k8s/RESOURCE_MEASUREMENTS.md](k8s/RESOURCE_MEASUREMENTS.md) et dans [ADR/ADR.md](ADR/ADR.md).
 
 ## Entrainement
 
@@ -121,6 +158,8 @@ make docker-push DOCKER_USER=<dockerhub-user>
 ## CI/CD GitHub Actions
 
 Le workflow `.github/workflows/ci.yml` execute les tests avec couverture 80 %, entraine les modeles pour verifier la reproductibilite, puis construit et pousse les trois images Docker Hub uniquement sur `main` si les tests passent.
+
+La CI lance aussi un test de charge court avec Docker Compose : demarrage des trois services, smoke test, puis `scripts/load_test.py` pendant 30 secondes avec seuils `success_rate_pct >= 95` et `latency_p95_s <= 2`. Ce test detecte les regressions d'API ou d'image Docker, mais ne remplace pas le challenge Minikube complet de la seance 4.
 
 Secrets GitHub requis :
 

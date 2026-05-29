@@ -50,13 +50,22 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 20
             timeoutSeconds: 5
+          command:
+            - gunicorn
+            - "services.inference.app:app"
+            - "-k"
+            - "uvicorn.workers.UvicornWorker"
+            - "--bind"
+            - "0.0.0.0:8000"
+            - "--workers"
+            - "4"
           resources:
             requests:
-              cpu: "1200m"
+              cpu: "500m"
               memory: "512Mi"
             limits:
-              cpu: "1500m"
-              memory: "640Mi"
+              cpu: "1000m"
+              memory: "704Mi"
 ---
 apiVersion: v1
 kind: Service

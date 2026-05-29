@@ -1,4 +1,4 @@
-.PHONY: help setup train test test-preprocessing test-services all ci-local run build stop logs smoke load-test load-test-stress minikube-version minikube-start k8s-dry-run k8s-server-dry-run k8s-namespace k8s-deploy k8s-status k8s-rollout k8s-url k8s-top k8s-quota k8s-logs k8s-delete docker-push clean
+.PHONY: help setup train test test-preprocessing test-services all ci-local run build stop logs smoke load-test load-test-nominal load-test-charge load-test-stress load-test-extreme challenge-nominal challenge-charge challenge-stress challenge-extreme challenge-full challenge-diagnostics challenge-compare monitoring-reset minikube-version minikube-start k8s-dry-run k8s-server-dry-run k8s-namespace k8s-deploy k8s-status k8s-rollout k8s-url k8s-top k8s-quota k8s-logs k8s-delete docker-push clean
 
 UV ?= uv
 PYTHON := $(UV) run python
@@ -6,9 +6,16 @@ URL ?= http://localhost:8000/predict
 CASE ?= churn
 LEVEL ?= nominal
 DURATION ?= 30
+CHALLENGE_DURATION ?= 300
+RATE ?= 300
+OUTPUT_DIR ?= results/load_tests
+BEFORE ?=
+AFTER ?=
+COMPARE_OUTPUT ?= results/seance4/comparison.md
+MONITORING_URL ?= http://localhost:8002
 DOCKER_USER ?= omarraslan99
 TAG ?= v0.1.0-seance3
-NAMESPACE ?= projet-TRIGRAMME
+NAMESPACE ?= projet-we
 K8S_DIR ?= k8s
 
 help:
@@ -27,7 +34,12 @@ help:
 	@echo "  make logs               Afficher les logs Docker Compose"
 	@echo "  make smoke              Tester POST /predict sur URL=$(URL)"
 	@echo "  make load-test          Lancer le script de charge court"
+	@echo "  make load-test-nominal  Lancer 10 req/min avec archivage JSON"
+	@echo "  make load-test-charge   Lancer 50 req/min avec archivage JSON"
 	@echo "  make load-test-stress   Lancer le stress test churn 150 req/min"
+	@echo "  make challenge-full     Lancer nominal + charge + stress avec collecte kubectl"
+	@echo "  make challenge-compare  Generer un tableau avant/apres"
+	@echo "  make monitoring-reset   Remettre a zero le monitoring local"
 	@echo "  make minikube-version   Verifier Minikube"
 	@echo "  make minikube-start     Demarrer Minikube avec les ressources recommandees"
 	@echo "  make k8s-dry-run        Valider les YAML Kubernetes et le quota hors-ligne"
@@ -73,10 +85,42 @@ smoke:
 	$(PYTHON) scripts/smoke_predict.py --url $(URL)
 
 load-test:
-	$(PYTHON) scripts/load_test.py --case $(CASE) --level $(LEVEL) --duration $(DURATION) --url $(URL)
+	$(PYTHON) scripts/load_test.py --case $(CASE) --level $(LEVEL) --duration $(DURATION) --url $(URL) --output-dir $(OUTPUT_DIR)
+
+load-test-nominal:
+	$(PYTHON) scripts/load_test.py --case churn --level nominal --duration $(DURATION) --url $(URL) --output-dir $(OUTPUT_DIR)
+
+load-test-charge:
+	$(PYTHON) scripts/load_test.py --case churn --level charge --duration $(DURATION) --url $(URL) --output-dir $(OUTPUT_DIR)
 
 load-test-stress:
-	$(PYTHON) scripts/load_test.py --case churn --level stress --url $(URL)
+	$(PYTHON) scripts/load_test.py --case churn --level stress --duration $(DURATION) --url $(URL) --output-dir $(OUTPUT_DIR)
+
+load-test-extreme:
+	$(PYTHON) scripts/load_test.py --case churn --level extreme --rate $(RATE) --duration $(DURATION) --url $(URL) --output-dir $(OUTPUT_DIR)
+
+challenge-nominal:
+	$(PYTHON) scripts/run_load_challenge.py --level nominal --duration $(CHALLENGE_DURATION) --url $(URL) --namespace $(NAMESPACE) --reset-monitoring
+
+challenge-charge:
+	$(PYTHON) scripts/run_load_challenge.py --level charge --duration $(CHALLENGE_DURATION) --url $(URL) --namespace $(NAMESPACE) --reset-monitoring
+
+challenge-stress:
+	$(PYTHON) scripts/run_load_challenge.py --level stress --duration $(CHALLENGE_DURATION) --url $(URL) --namespace $(NAMESPACE) --reset-monitoring
+
+challenge-extreme:
+	$(PYTHON) scripts/run_load_challenge.py --level extreme --rate $(RATE) --duration $(CHALLENGE_DURATION) --url $(URL) --namespace $(NAMESPACE) --reset-monitoring
+
+challenge-full: challenge-nominal challenge-charge challenge-stress
+
+challenge-diagnostics:
+	$(PYTHON) scripts/run_load_challenge.py --level $(LEVEL) --duration 1 --url $(URL) --namespace $(NAMESPACE)
+
+challenge-compare:
+	$(PYTHON) scripts/compare_load_results.py --before $(BEFORE) --after $(AFTER) --output $(COMPARE_OUTPUT)
+
+monitoring-reset:
+	$(PYTHON) -c "import requests; print(requests.post('$(MONITORING_URL)/reset', timeout=5).json())"
 
 minikube-version:
 	minikube version
