@@ -1,182 +1,77 @@
 # WE Churn - TP Orchestration ML
 
+Pipeline ML multi-services deploye sous contrainte de ressources (Cas 3 : **prediction de churn et recommandation d'offre** pour un operateur telecom). L'objectif n'est pas le meilleur modele, mais un systeme qui **tient sous charge**, **respecte un quota Kubernetes fixe** (2500m CPU / 1,5 Gi) et se **deploie depuis un simple `git clone`**.
+
 ## Deploiement
 
-Prerequis locaux : Docker Desktop, Minikube et `uv`.
+Prerequis : Docker Desktop, Minikube, `kubectl` et `uv`. Le systeme se deploie sur Minikube a partir des images publiques Docker Hub, **multi-arch (amd64 / arm64), donc compatibles Mac Intel et Apple Silicon** (aucune construction requise) :
 
-```powershell
-uv sync
-uv run python scripts/train_models.py
-uv run pytest --cov
-docker compose up --build
-```
-
-Les memes commandes sont regroupees dans le `Makefile` :
-
-```powershell
-make setup
-make train
-make test
-make run
-```
-
-L'API d'inference est exposee localement sur `http://localhost:8000`.
-
-Tester une prediction avec PowerShell :
-
-```powershell
-$row = Import-Csv .\data\churn.csv | Select-Object -First 1
-$payload = $row | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://localhost:8000/predict -Body $payload -ContentType "application/json"
-```
-
-Consulter le monitoring :
-
-```powershell
-Invoke-RestMethod http://localhost:8002/metrics
-```
-
-Lancer un test de charge court contre Docker Compose :
-
-```powershell
-uv run python scripts/load_test.py --case churn --level nominal --duration 30 --url http://localhost:8000/predict
-```
-
-Les resultats sont archives automatiquement en JSON dans `results/load_tests/`. Pour imposer un seuil lors d'une verification locale ou CI :
-
-```powershell
-uv run python scripts/load_test.py --case churn --level nominal --duration 30 --url http://localhost:8000/predict --min-success-rate 95 --max-p95-s 2
-```
-
-Equivalent via le `Makefile` :
-
-```powershell
-make smoke
-make load-test
-```
-
-## Deploiement Kubernetes
-
-Les manifests Kubernetes sont dans `k8s/`. Par defaut, ils referencent les images Docker Hub `omarraslan99/we-churn-*:v1.0-seance5`. Si votre identifiant Docker Hub est different, remplacez `omarraslan99` dans les manifests `k8s/*.yaml` et lancez `make docker-push DOCKER_USER=<dockerhub-user>` avec le meme nom.
-
-Demarrage Minikube et deploiement complet :
-
-```powershell
-make minikube-start
-make k8s-deploy
-make k8s-rollout
-make k8s-status
-```
-
-Equivalent manuel :
-
-```powershell
+```bash
 minikube start --cpus=4 --memory=6144 --driver=docker
 minikube addons enable metrics-server
 kubectl apply -f k8s/00-namespace.yaml
 kubectl apply -f k8s/ -n projet-we
-kubectl get all -n projet-we
+kubectl get pods -n projet-we
 ```
 
-Recuperer l'URL du service d'inference :
+Recuperer l'URL du front de demonstration (a laisser ouvert) :
 
-```powershell
-make k8s-url
+```bash
+minikube service frontend-svc -n projet-we --url
 ```
 
-Tester l'API Kubernetes :
+> **Guide pas-a-pas complet (macOS) - installation des prerequis, verification en local via Docker Compose, tests, script de charge aux trois niveaux, depannage : voir [SETUP.md](SETUP.md).**
 
-```powershell
-make smoke URL=<URL_MINIKUBE>/predict
-make load-test URL=<URL_MINIKUBE>/predict DURATION=60
+## Architecture
+
+Quatre services containerises dans le namespace `projet-we` :
+
+| Service         | Role                                                                   | Expose      |
+| --------------- | ---------------------------------------------------------------------- | ----------- |
+| `preprocessing` | Valide et normalise le profil client (`POST /preprocess`)              | ClusterIP   |
+| `inference`     | Porte les **deux modeles**, orchestre la prediction (`POST /predict`)  | NodePort    |
+| `monitoring`    | Volume, latence, taux d'erreur, P95 (`POST /events`, `GET /metrics`)   | ClusterIP   |
+| `frontend`      | Console de demo (passerelle) : proxy vers inference et monitoring      | NodePort    |
+
+Le client attaque `inference` (ou le `frontend`) ; l'inference appelle `preprocessing` puis `monitoring` via le **DNS interne Kubernetes** (ClusterIP). Le namespace est encadre par un `ResourceQuota` et un `LimitRange`.
+
+## Modeles
+
+Deux modeles **RandomForest** legers, entraines hors Minikube a partir de `data/churn.csv`, versionnes dans `models/` :
+
+- **Churn** : score de resiliation 0-1. ROC-AUC 0,838, F1 0,624, accuracy 0,748 (~2,5 Mo).
+- **Offre** : recommandation parmi 5 categories, sur donnees synthetiques. Accuracy 0,814 (~3,8 Mo).
+- **Routage** : si le score de churn depasse le seuil `CHURN_THRESHOLD` (0,5), le second modele est appele ; sinon `offre_standard`.
+
+Fiche de validation detaillee : [models/README.md](models/README.md).
+
+## Quota et dimensionnement
+
+La somme des `requests` et des `limits` des quatre services reste sous le quota du Cas 3 (2500m CPU / 1536Mi). Total mesure : **1050m / 960Mi** en requests, **2000m / 1344Mi** en limits. Le tableau de dimensionnement complet et la justification (strategie `Recreate`, mesures `kubectl top pods`) sont dans la synthese de l'[ADR](ADR/ADR.md) et dans [k8s/RESOURCE_MEASUREMENTS.md](k8s/RESOURCE_MEASUREMENTS.md).
+
+## CI/CD
+
+`.github/workflows/ci.yml` (GitHub Actions) : lance les tests avec un seuil de **couverture 80 %**, puis construit et pousse les **quatre images** Docker Hub **multi-arch (amd64 / arm64)** (tag immuable `v1.0-seance5`) **uniquement sur `main` et uniquement si les tests passent** (`docker` depend de `test`). Secrets requis : `DOCKER_USERNAME`, `DOCKER_TOKEN`.
+
+## Structure du depot
+
+```
+services/        preprocessing, inference, monitoring, frontend (code + Dockerfile)
+k8s/             manifests Kubernetes (quota, limitrange, deployments, services) + RESOURCE_MEASUREMENTS.md
+models/          artefacts .pkl + metadata + fiche de validation
+scripts/         train_models, load_test, smoke_predict, run_load_challenge, validate_k8s_yaml
+tests/           tests preprocessing, services, frontend, load_test
+data/            churn.csv
+results/         preuves du challenge de charge (seance 4)
+ADR/ADR.md       Architecture Decision Record (document vivant)
+SETUP.md         guide d'installation et de test pas-a-pas (macOS)
+docker-compose.yml, Makefile, pyproject.toml
 ```
 
-Mesurer les ressources pour justifier `requests` et `limits` :
+## Documentation
 
-```powershell
-make k8s-top
-make k8s-quota
-```
-
-Les mesures et la justification sont a reporter dans [k8s/RESOURCE_MEASUREMENTS.md](k8s/RESOURCE_MEASUREMENTS.md).
-
-## Seance 4 - Challenge de charge
-
-Le protocole complet doit etre execute sur Minikube, car il depend de `kubectl top pods`, du namespace `projet-we` et du quota Kubernetes. Avant de lancer les paliers, verifier que les services sont disponibles :
-
-```powershell
-make minikube-start
-make k8s-deploy
-make k8s-rollout
-make k8s-status
-$url = "<URL_MINIKUBE>/predict"
-make smoke URL=$url
-```
-
-Lancer ensuite les trois niveaux imposes, chacun avec collecte `kubectl top pods` toutes les 30 secondes et archivage des diagnostics :
-
-```powershell
-make challenge-nominal URL=$url
-make challenge-charge URL=$url
-make challenge-stress URL=$url
-```
-
-Chaque execution cree un dossier `results/seance4/<timestamp>_<niveau>/` avec le JSON du test, les echantillons CPU/memoire, les events Kubernetes, les logs et les metriques monitoring. Apres identification du palier critique, appliquer une seule correction, redeployer, puis relancer uniquement ce palier.
-
-Pour generer le tableau avant/apres :
-
-```powershell
-make challenge-compare BEFORE=<avant.json> AFTER=<apres.json> COMPARE_OUTPUT=results/seance4/comparison.md
-```
-
-Les conclusions finales doivent etre reportees dans [k8s/RESOURCE_MEASUREMENTS.md](k8s/RESOURCE_MEASUREMENTS.md) et dans [ADR/ADR.md](ADR/ADR.md).
-
-## Entrainement
-
-Les modeles sont entraines hors Minikube a partir de `data/churn.csv`. Les artefacts sont generes dans `models/` :
-
-- `churn_pipeline.pkl`
-- `offer_pipeline.pkl`
-- `model_metadata.json`
-- `README.md`
-
-## Services
-
-- `services/preprocessing` : validation et nettoyage des profils clients.
-- `services/inference` : endpoint `POST /predict`, prediction churn et recommandation.
-- `services/monitoring` : collecte des evenements, volume, latence et erreurs.
-- `services/frontend` : front web de demonstration (passerelle). Sert une page unique et fait proxy vers `inference-svc` et `monitoring-svc` via le DNS interne (`/api/predict`, `/api/metrics`, `/api/sample`).
-
-## Demo - front web
-
-Le service `frontend` expose une interface de demonstration en `NodePort`. Il tire un client au hasard dans le dataset, permet d'editer quelques champs (contrat, anciennete, charges, Internet), lance une prediction en direct et affiche les metriques du monitoring rafraichies en continu.
-
-En local avec Docker Compose, le front est disponible sur `http://localhost:8080`.
-
-Sur Kubernetes, recuperer son URL :
-
-```powershell
-make k8s-url-front
-```
-
-## Docker Hub
-
-Pour tagger et pousser les images apres connexion Docker Hub :
-
-```powershell
-make build
-make docker-push DOCKER_USER=<dockerhub-user>
-```
-
-## CI/CD GitHub Actions
-
-Le workflow `.github/workflows/ci.yml` execute les tests avec couverture 80 %, entraine les modeles pour verifier la reproductibilite, puis construit et pousse les trois images Docker Hub uniquement sur `main` si les tests passent.
-
-La CI lance aussi un test de charge court avec Docker Compose : demarrage des trois services, smoke test, puis `scripts/load_test.py` pendant 30 secondes avec seuils `success_rate_pct >= 95` et `latency_p95_s <= 2`. Ce test detecte les regressions d'API ou d'image Docker, mais ne remplace pas le challenge Minikube complet de la seance 4.
-
-Secrets GitHub requis :
-
-- `DOCKER_USERNAME`
-- `DOCKER_TOKEN`
-
-Le push Docker est conditionne a la reussite du job de tests, ce qui evite de publier une image si la couverture ou les tests echouent.
+- [SETUP.md](SETUP.md) - installation et tests pas-a-pas (macOS).
+- [ADR/ADR.md](ADR/ADR.md) - decisions d'architecture, dimensionnement, journal des evolutions.
+- [k8s/RESOURCE_MEASUREMENTS.md](k8s/RESOURCE_MEASUREMENTS.md) - mesures de ressources et challenge de charge.
+- [models/README.md](models/README.md) - fiche de validation des modeles.
+- `results/` - resultats bruts du challenge de charge de la seance 4.

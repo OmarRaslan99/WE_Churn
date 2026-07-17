@@ -81,6 +81,9 @@ jobs:
           uv sync --frozen
           uv run python scripts/train_models.py
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -94,6 +97,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           file: services/preprocessing/Dockerfile
           push: true
           tags: |
@@ -104,6 +108,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           file: services/monitoring/Dockerfile
           push: true
           tags: |
@@ -114,6 +119,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           file: services/inference/Dockerfile
           push: true
           tags: |
@@ -124,6 +130,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           file: services/frontend/Dockerfile
           push: true
           tags: |
