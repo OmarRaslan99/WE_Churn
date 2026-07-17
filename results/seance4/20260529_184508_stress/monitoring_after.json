@@ -1,0 +1,14 @@
+{
+  "total_requests": 1798,
+  "errors": 0,
+  "success_rate_pct": 100.0,
+  "latency_avg_ms": 139.15,
+  "latency_max_ms": 7892.38,
+  "offers": {
+    "engagement_avantageux": 292,
+    "remise_tarifaire": 263,
+    "offre_standard": 1083,
+    "support_prioritaire": 53,
+    "upgrade_data": 107
+  }
+}

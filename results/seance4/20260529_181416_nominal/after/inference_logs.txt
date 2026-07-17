@@ -1,0 +1,18 @@
+$ kubectl logs -n projet-we -l app=inference --tail=200 --timestamps=true
+
+STDOUT:
+2026-05-29T16:04:06.174594436Z [2026-05-29 16:04:06 +0000] [1] [INFO] Starting gunicorn 23.0.0
+2026-05-29T16:04:06.175757788Z [2026-05-29 16:04:06 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+2026-05-29T16:04:06.175791292Z [2026-05-29 16:04:06 +0000] [1] [INFO] Using worker: uvicorn.workers.UvicornWorker
+2026-05-29T16:04:06.181380724Z [2026-05-29 16:04:06 +0000] [7] [INFO] Booting worker with pid: 7
+2026-05-29T16:04:06.267141446Z [2026-05-29 16:04:06 +0000] [8] [INFO] Booting worker with pid: 8
+2026-05-29T16:04:08.964853579Z [2026-05-29 16:04:08 +0000] [8] [INFO] Started server process [8]
+2026-05-29T16:04:08.964898785Z [2026-05-29 16:04:08 +0000] [7] [INFO] Started server process [7]
+2026-05-29T16:04:08.964905986Z [2026-05-29 16:04:08 +0000] [8] [INFO] Waiting for application startup.
+2026-05-29T16:04:08.964944791Z [2026-05-29 16:04:08 +0000] [7] [INFO] Waiting for application startup.
+2026-05-29T16:04:08.966132245Z [2026-05-29 16:04:08 +0000] [8] [INFO] Application startup complete.
+2026-05-29T16:04:08.966159448Z [2026-05-29 16:04:08 +0000] [7] [INFO] Application startup complete.
+
+
+STDERR:
+

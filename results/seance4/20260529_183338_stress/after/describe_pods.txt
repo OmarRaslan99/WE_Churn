@@ -1,0 +1,208 @@
+$ kubectl describe pods -n projet-we
+
+STDOUT:
+Name:             inference-649d9975cb-tpb62
+Namespace:        projet-we
+Priority:         0
+Service Account:  default
+Node:             minikube/192.168.49.2
+Start Time:       Fri, 29 May 2026 18:03:11 +0200
+Labels:           app=inference
+                  app.kubernetes.io/name=inference
+                  app.kubernetes.io/part-of=we-churn
+                  pod-template-hash=649d9975cb
+Annotations:      <none>
+Status:           Running
+IP:               10.244.0.5
+IPs:
+  IP:           10.244.0.5
+Controlled By:  ReplicaSet/inference-649d9975cb
+Containers:
+  inference:
+    Container ID:   docker://0ed25214ba311b9b2c05288dc731c8979fb943ec45ab0a6580406e7d4ec69f79
+    Image:          omarraslan99/we-churn-inference:v0.1.0-seance3
+    Image ID:       docker-pullable://omarraslan99/we-churn-inference@sha256:7a939c989f825d1b11ed2bea7bc3512104fa162b052ccd01e4669873b124b28f
+    Port:           8000/TCP (http)
+    Host Port:      0/TCP (http)
+    State:          Running
+      Started:      Fri, 29 May 2026 18:04:05 +0200
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     1500m
+      memory:  640Mi
+    Requests:
+      cpu:      1200m
+      memory:   512Mi
+    Liveness:   http-get http://:8000/health delay=30s timeout=5s period=20s #success=1 #failure=3
+    Readiness:  http-get http://:8000/health delay=10s timeout=5s period=10s #success=1 #failure=3
+    Environment:
+      PREPROCESSING_URL:  http://preprocessing-svc:8001
+      MONITORING_URL:     http://monitoring-svc:8002
+      MODEL_DIR:          /app/models
+      CHURN_THRESHOLD:    0.5
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-bgwcl (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-bgwcl:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  35m                default-scheduler  Successfully assigned projet-we/inference-649d9975cb-tpb62 to minikube
+  Normal   Pulling    35m                kubelet            Pulling image "omarraslan99/we-churn-inference:v0.1.0-seance3"
+  Normal   Pulled     34m                kubelet            Successfully pulled image "omarraslan99/we-churn-inference:v0.1.0-seance3" in 50.98s (50.98s including waiting). Image size: 514388992 bytes.
+  Normal   Created    34m                kubelet            Created container: inference
+  Normal   Started    34m                kubelet            Started container inference
+  Warning  Unhealthy  34m (x2 over 34m)  kubelet            Readiness probe failed: Get "http://10.244.0.5:8000/health": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+
+
+Name:             monitoring-5bff87db98-s2lhn
+Namespace:        projet-we
+Priority:         0
+Service Account:  default
+Node:             minikube/192.168.49.2
+Start Time:       Fri, 29 May 2026 18:03:11 +0200
+Labels:           app=monitoring
+                  app.kubernetes.io/name=monitoring
+                  app.kubernetes.io/part-of=we-churn
+                  pod-template-hash=5bff87db98
+Annotations:      <none>
+Status:           Running
+IP:               10.244.0.7
+IPs:
+  IP:           10.244.0.7
+Controlled By:  ReplicaSet/monitoring-5bff87db98
+Containers:
+  monitoring:
+    Container ID:   docker://2f68988470435241fda37fab8db40c1c51015a2f60020260f51c32d2f4fcf500
+    Image:          omarraslan99/we-churn-monitoring:v0.1.0-seance3
+    Image ID:       docker-pullable://omarraslan99/we-churn-monitoring@sha256:88d035e424fc112c741d1411c0e35dc360eb83fdb02b6fa3b82cf9003b6ab11f
+    Port:           8002/TCP (http)
+    Host Port:      0/TCP (http)
+    State:          Running
+      Started:      Fri, 29 May 2026 18:04:50 +0200
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     250m
+      memory:  192Mi
+    Requests:
+      cpu:        150m
+      memory:     128Mi
+    Liveness:     http-get http://:8002/health delay=15s timeout=1s period=20s #success=1 #failure=3
+    Readiness:    http-get http://:8002/health delay=5s timeout=1s period=10s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-m5qs9 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-m5qs9:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  35m   default-scheduler  Successfully assigned projet-we/monitoring-5bff87db98-s2lhn to minikube
+  Normal  Pulling    35m   kubelet            Pulling image "omarraslan99/we-churn-monitoring:v0.1.0-seance3"
+  Normal  Pulled     33m   kubelet            Successfully pulled image "omarraslan99/we-churn-monitoring:v0.1.0-seance3" in 10.625s (1m36.494s including waiting). Image size: 165899905 bytes.
+  Normal  Created    33m   kubelet            Created container: monitoring
+  Normal  Started    33m   kubelet            Started container monitoring
+
+
+Name:             preprocessing-664d74fdc-jtjft
+Namespace:        projet-we
+Priority:         0
+Service Account:  default
+Node:             minikube/192.168.49.2
+Start Time:       Fri, 29 May 2026 18:03:11 +0200
+Labels:           app=preprocessing
+                  app.kubernetes.io/name=preprocessing
+                  app.kubernetes.io/part-of=we-churn
+                  pod-template-hash=664d74fdc
+Annotations:      <none>
+Status:           Running
+IP:               10.244.0.6
+IPs:
+  IP:           10.244.0.6
+Controlled By:  ReplicaSet/preprocessing-664d74fdc
+Containers:
+  preprocessing:
+    Container ID:   docker://61b0e26dbc0ced8ef06aa02bfa48371d6b8f21c94a8ba68768de9057ee84d0c7
+    Image:          omarraslan99/we-churn-preprocessing:v0.1.0-seance3
+    Image ID:       docker-pullable://omarraslan99/we-churn-preprocessing@sha256:1f0b4427354a025a8ce3eaa8d4f0ad3044ff8ece1d8336d931e329163566d887
+    Port:           8001/TCP (http)
+    Host Port:      0/TCP (http)
+    State:          Running
+      Started:      Fri, 29 May 2026 18:04:40 +0200
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  256Mi
+    Requests:
+      cpu:        300m
+      memory:     192Mi
+    Liveness:     http-get http://:8001/health delay=15s timeout=1s period=20s #success=1 #failure=3
+    Readiness:    http-get http://:8001/health delay=5s timeout=1s period=10s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-kqz4l (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-kqz4l:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  35m   default-scheduler  Successfully assigned projet-we/preprocessing-664d74fdc-jtjft to minikube
+  Normal  Pulling    35m   kubelet            Pulling image "omarraslan99/we-churn-preprocessing:v0.1.0-seance3"
+  Normal  Pulled     34m   kubelet            Successfully pulled image "omarraslan99/we-churn-preprocessing:v0.1.0-seance3" in 35.454s (1m26.024s including waiting). Image size: 306440565 bytes.
+  Normal  Created    34m   kubelet            Created container: preprocessing
+  Normal  Started    34m   kubelet            Started container preprocessing
+
+
+STDERR:
+

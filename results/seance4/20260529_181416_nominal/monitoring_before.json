@@ -1,0 +1,10 @@
+{
+  "total_requests": 1,
+  "errors": 0,
+  "success_rate_pct": 100.0,
+  "latency_avg_ms": 192.73,
+  "latency_max_ms": 192.73,
+  "offers": {
+    "engagement_avantageux": 1
+  }
+}

@@ -1,0 +1,8 @@
+$ kubectl logs -n projet-we -l app=monitoring --previous --tail=200
+
+STDOUT:
+
+
+STDERR:
+Error from server (BadRequest): previous terminated container "monitoring" in pod "monitoring-5bff87db98-s2lhn" not found
+

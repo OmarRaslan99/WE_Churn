@@ -1,12 +1,47 @@
 # Architecture Decision Record vivant - Cas 3 : Prediction de churn et recommandation d'offre
 
 **Statut :** vivant, a mettre a jour a chaque evolution structurante du projet  
-**Derniere mise a jour :** 2026-05-29 (Seance 4 - challenge de charge execute et correction deployee)  
+**Derniere mise a jour :** 2026-07-17 (Seance 5 - front de demonstration, tag immuable, corrections CI/inference)  
 **Portee :** choix d'architecture, decisions remplacees, implementation, validation locale, Kubernetes et CI/CD
+
+## Synthese (etat final au 2026-07-17)
+
+Le systeme final comprend **quatre services** containerises dans le namespace `projet-we` : `preprocessing`,
+`inference` (qui porte les deux modeles), `monitoring`, et `frontend` (passerelle de demonstration ajoutee en
+seance 5). Le tableau ci-dessous est le **dimensionnement definitif, mesure avec `kubectl top pods`** ; il demontre
+que la somme des `requests` **et** des `limits` reste sous le quota du cas 3.
+
+| Service       | Req. CPU |  Req. Mem. | Lim. CPU |  Lim. Mem. |
+| ------------- | -------: | ---------: | -------: | ---------: |
+| preprocessing |     300m |      192Mi |     500m |      256Mi |
+| inference     |     500m |      512Mi |    1000m |      704Mi |
+| monitoring    |     150m |      128Mi |     250m |      192Mi |
+| frontend      |     100m |      128Mi |     250m |      192Mi |
+| **Total**     | **1050m**|  **960Mi** |**2000m** | **1344Mi** |
+| **Quota**     | **2500m**| **1536Mi** |**2500m** | **1536Mi** |
+| **Marge**     | **1450m**|  **576Mi** | **500m** |  **192Mi** |
+
+**Memoire, raisonnement explicite.** Les deux modeles RandomForest pesent ~2,5 Mo (churn) et ~3,8 Mo (offre), soit
+~6,3 Mo de poids. Le service d'inference tourne avec **4 workers Gunicorn** ; grace a l'option **`--preload`**, les
+modeles sont charges **une seule fois** dans le processus maitre avant le fork et **partages entre workers en
+copy-on-write** (pas de duplication x4). L'empreinte reelle mesuree de l'inference est ~192Mi (Python + scikit-learn
++ numpy + modeles), tres en dessous des 512Mi reserves. Les autres services sont legers : preprocessing ~173Mi
+(pandas/numpy), monitoring ~33Mi, frontend ~54Mi (pas de librairie ML).
+
+**Strategie de deploiement (finale).** L'inference reste en **`Recreate`**. Apres le right-sizing de la seance 4, ce
+ne sont plus les `requests` qui l'imposent (un surge tiendrait : 1050m + 500m = 1550m < 2500m) mais les **`limits`** :
+un `RollingUpdate maxSurge:1` creerait un 2e pod inference et porterait les `limits.cpu` a **3000m (> 2500m)** et les
+`limits.memory` a **2048Mi (> 1536Mi)**, tous deux au-dessus du quota, donc pod bloque en `Pending`. `Recreate` evite
+ce blocage au prix d'un court downtime. Les trois autres services, legers et sans etat, gardent la strategie par
+defaut (`RollingUpdate`).
+
+**Reste :** CI/CD GitHub Actions verte sur `main` (tests bloquants, **couverture 84,64 %**, push des 4 images
+conditionne aux tests), images sur tag immuable `v1.0-seance5`, deploiement en une commande `kubectl apply -f k8s/`.
+Le detail des decisions et de leur evolution figure dans le journal en fin de document.
 
 ## Contexte et choix du cas d'usage
 
-Nous avons choisi le **cas 3 : prediction de churn et recommandation d'offre**. Ce choix est adapte au quota impose de **2500m CPU** et **1.5 Gi de memoire**, car il repose sur des donnees tabulaires legeres et sur des modeles peu volumineux. Le dataset principal sera **Telco Customer Churn IBM**, compose d'environ 7043 clients et 21 variables dans un CSV d'environ 1 Mo, disponible publiquement sur Kaggle, UCI ou GitHub. Pour le modele de recommandation, nous genererons un dataset synthetique de 5000 lignes avec 5 categories d'offres fictives a partir des caracteristiques du dataset initial.
+Nous avons choisi le **cas 3 : prediction de churn et recommandation d'offre**. Ce choix est adapte au quota impose de **2500m CPU** et **1.5 Gi de memoire**, car il repose sur des donnees tabulaires legeres et sur des modeles peu volumineux. Le dataset principal sera **Telco Customer Churn IBM**, compose d'environ 7043 clients et 21 variables dans un CSV d'environ 1 Mo, disponible publiquement sur Kaggle, UCI ou GitHub, sous **licence publique** (usage educatif). Pour le modele de recommandation, nous genererons un dataset synthetique de 5000 lignes avec 5 categories d'offres fictives a partir des caracteristiques du dataset initial.
 
 Le besoin metier est d'identifier les clients a risque de resiliation et de proposer une offre en moins de 200 ms. Le risque principal n'est donc pas la taille des donnees, mais la tenue en charge, notamment au niveau **stress** du script fourni, soit **150 req/min**. Un service Flask mono-threade pouvant saturer a ce debit, le service d'inference devra etre lance avec plusieurs workers et ajuste apres mesure.
 
@@ -34,7 +69,7 @@ Cette repartition laisse environ 34 % de marge CPU et 46 % de marge memoire sur 
 
 ## Strategie de deploiement et CI/CD
 
-Nous retenons une strategie **Recreate** pour la premiere version. Un `RollingUpdate` avec `maxSurge: 1` sur le service d'inference demanderait temporairement un pod supplementaire de 1200m CPU et 512Mi. La marge memoire de 704Mi serait suffisante, mais la marge CPU de 850m ne couvrirait pas les 1200m requis. Le nouveau pod risquerait donc de rester en `Pending`. `Recreate` evite ce blocage au prix d'un court downtime, acceptable dans ce TP et plus robuste sur une machine inconnue lors de la correction.
+Nous retenons une strategie **Recreate** pour la premiere version. Un `RollingUpdate` avec `maxSurge: 1` sur le service d'inference demanderait temporairement un pod supplementaire de 1200m CPU et 512Mi. La marge memoire de 704Mi serait suffisante, mais la marge CPU de 850m ne couvrirait pas les 1200m requis. Le nouveau pod risquerait donc de rester en `Pending`. `Recreate` evite ce blocage au prix d'un court downtime, acceptable dans ce TP et plus robuste sur une machine inconnue lors de la correction. (Note : ce calcul est celui de la seance 1, base sur une inference a 1200m. Apres le right-sizing de la seance 4 — inference a 500m — la marge des `requests` couvrirait desormais un surge ; la justification de `Recreate` repose donc maintenant sur les `limits`, comme detaille dans la synthese en tete de document.)
 
 Le pipeline CI/CD sera implemente avec **GitHub Actions**. Ce choix est justifie par son integration native au depot GitHub et par la gestion securisee des secrets Docker Hub. Le pipeline executera les tests avec un seuil de couverture de 80 %, bloquera le build si les tests echouent, puis construira et poussera les images Docker uniquement en cas de succes.
 
@@ -119,3 +154,13 @@ L'ajout de ce service consomme du quota : le front est dimensionne a `100m/128Mi
 Les manifests utilisaient jusqu'ici le tag mutable `v0.1.0-seance3`, reecrit par la CI a chaque push, combine a `imagePullPolicy: IfNotPresent`. Sur un cluster Minikube deja actif, ce couple provoque un piege : apres un nouveau push, le pod continue de servir l'ancienne image gardee en cache local (meme tag deja present), donc du code perime. Ce comportement a ete observe concretement (metrique P95 et endpoint `GET /events` du monitoring absents du pod alors qu'ils etaient dans le code). Sur la machine de correction (Minikube vierge) le probleme ne se pose pas, car l'image est pullee fraiche, mais il fragilise les demonstrations locales et la coherence code/image.
 
 La decision est de passer a un **tag immuable versionne** `v1.0-seance5`, aligne dans la CI (`IMAGE_TAG`), les quatre manifests `k8s/*.yaml`, le `Makefile` (`TAG`) et le README. Un tag neuf n'etant present dans aucun cache, `IfNotPresent` le tire systematiquement a jour lors du prochain `kubectl apply`. La convention retenue pour la suite est de **bumper le tag a chaque changement d'image destine a etre deploye**, plutot que de reecrire un tag existant. L'alternative `imagePullPolicy: Always` a ete envisagee mais ecartee pour la V1 : elle interrogerait le registre a chaque demarrage de pod et rendrait le systeme dependant du reseau au boot, alors que le tag immuable resout le probleme sans cette contrainte.
+
+### 2026-07-17 - Seance 5 : corrections CI, inference et versionnement des preuves
+
+Trois corrections structurantes ont ete apportees pendant la preparation de la soutenance.
+
+D'abord, la **CI etait rouge sans qu'on l'ait remarque** : la commande `uv run pytest --cov` ajoutait un `--cov` nu au `--cov=services` de la configuration, ce qui elargissait la mesure de couverture a tout le depot (dont `scripts/`) et faisait tomber le total a ~67 %, sous le seuil de 80 %. Le job de tests echouait donc, et comme le job Docker en depend (`needs: test`), **les images n'etaient plus republiees** : c'est la cause racine de la derive d'images constatee ensuite (metrique P95 et endpoint `GET /events` du monitoring absents des pods deployes alors qu'ils etaient dans le code). La commande a ete ramenee a `uv run pytest` (qui applique la configuration `--cov=services`) dans la CI et le `Makefile` ; la pipeline repasse au vert et republie les images, et la couverture reelle mesuree sur `services/` est de 84,64 %.
+
+Ensuite, le service d'inference a ete lance avec **`--preload`** (Gunicorn) accompagne d'un **warm-up des modeles au niveau module** : les artefacts sont charges une seule fois dans le processus maitre avant le fork des workers et partages en copy-on-write. Cela supprime le cold-start (un worker chargeant les modeles a froid sur sa premiere requete provoquait un pic de latence isole a ~8 s, observe dans le run apres correction de la seance 4) et evite de dupliquer les modeles en memoire. Un correctif mineur (`status_code` initialise a 500 avant le `try` de `/predict`) evite un `UnboundLocalError` sur une erreur inattendue ; cote front, la lecture du CSV utilise `utf-8-sig` pour ne pas laisser fuir vers le modele la colonne identifiante prefixee d'un BOM.
+
+Enfin, le repertoire `results/` (preuves du challenge de charge de la seance 4 : resultats JSON, releves `kubectl top pods`, events Kubernetes, logs, et le tableau avant/apres `comparison_stress.md`) a ete **retire du `.gitignore` et versionne** (~660 Ko), afin que le livrable de la seance 4 soit reellement present dans le depot clone par l'enseignant.

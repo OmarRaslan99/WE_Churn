@@ -1,0 +1,11 @@
+$ kubectl get pods -n projet-we -o wide
+
+STDOUT:
+NAME                            READY   STATUS    RESTARTS   AGE     IP           NODE       NOMINATED NODE   READINESS GATES
+inference-8675649fbc-l9j9w      1/1     Running   0          7m19s   10.244.0.8   minikube   <none>           <none>
+monitoring-5bff87db98-s2lhn     1/1     Running   0          47m     10.244.0.7   minikube   <none>           <none>
+preprocessing-664d74fdc-jtjft   1/1     Running   0          47m     10.244.0.6   minikube   <none>           <none>
+
+
+STDERR:
+

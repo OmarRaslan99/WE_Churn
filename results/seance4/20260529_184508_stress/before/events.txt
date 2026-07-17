@@ -1,0 +1,40 @@
+$ kubectl get events -n projet-we --sort-by=.lastTimestamp
+
+STDOUT:
+LAST SEEN   TYPE      REASON              OBJECT                               MESSAGE
+41m         Normal    SuccessfulCreate    replicaset/preprocessing-664d74fdc   Created pod: preprocessing-664d74fdc-jtjft
+41m         Normal    SuccessfulCreate    replicaset/inference-649d9975cb      Created pod: inference-649d9975cb-tpb62
+41m         Normal    Scheduled           pod/preprocessing-664d74fdc-jtjft    Successfully assigned projet-we/preprocessing-664d74fdc-jtjft to minikube
+41m         Normal    ScalingReplicaSet   deployment/monitoring                Scaled up replica set monitoring-5bff87db98 from 0 to 1
+41m         Normal    SuccessfulCreate    replicaset/monitoring-5bff87db98     Created pod: monitoring-5bff87db98-s2lhn
+41m         Normal    Scheduled           pod/inference-649d9975cb-tpb62       Successfully assigned projet-we/inference-649d9975cb-tpb62 to minikube
+41m         Normal    ScalingReplicaSet   deployment/inference                 Scaled up replica set inference-649d9975cb from 0 to 1
+41m         Normal    Scheduled           pod/monitoring-5bff87db98-s2lhn      Successfully assigned projet-we/monitoring-5bff87db98-s2lhn to minikube
+41m         Normal    ScalingReplicaSet   deployment/preprocessing             Scaled up replica set preprocessing-664d74fdc from 0 to 1
+41m         Normal    Pulling             pod/inference-649d9975cb-tpb62       Pulling image "omarraslan99/we-churn-inference:v0.1.0-seance3"
+41m         Normal    Pulling             pod/monitoring-5bff87db98-s2lhn      Pulling image "omarraslan99/we-churn-monitoring:v0.1.0-seance3"
+41m         Normal    Pulling             pod/preprocessing-664d74fdc-jtjft    Pulling image "omarraslan99/we-churn-preprocessing:v0.1.0-seance3"
+41m         Normal    Pulled              pod/inference-649d9975cb-tpb62       Successfully pulled image "omarraslan99/we-churn-inference:v0.1.0-seance3" in 50.98s (50.98s including waiting). Image size: 514388992 bytes.
+41m         Normal    Started             pod/inference-649d9975cb-tpb62       Started container inference
+41m         Normal    Created             pod/inference-649d9975cb-tpb62       Created container: inference
+40m         Warning   Unhealthy           pod/inference-649d9975cb-tpb62       Readiness probe failed: Get "http://10.244.0.5:8000/health": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+40m         Normal    Pulled              pod/preprocessing-664d74fdc-jtjft    Successfully pulled image "omarraslan99/we-churn-preprocessing:v0.1.0-seance3" in 35.454s (1m26.024s including waiting). Image size: 306440565 bytes.
+40m         Normal    Created             pod/preprocessing-664d74fdc-jtjft    Created container: preprocessing
+40m         Normal    Started             pod/preprocessing-664d74fdc-jtjft    Started container preprocessing
+40m         Normal    Pulled              pod/monitoring-5bff87db98-s2lhn      Successfully pulled image "omarraslan99/we-churn-monitoring:v0.1.0-seance3" in 10.625s (1m36.494s including waiting). Image size: 165899905 bytes.
+40m         Normal    Started             pod/monitoring-5bff87db98-s2lhn      Started container monitoring
+40m         Normal    Created             pod/monitoring-5bff87db98-s2lhn      Created container: monitoring
+2m19s       Normal    SuccessfulDelete    replicaset/inference-649d9975cb      Deleted pod: inference-649d9975cb-tpb62
+2m19s       Normal    ScalingReplicaSet   deployment/inference                 Scaled down replica set inference-649d9975cb from 1 to 0
+2m19s       Normal    Killing             pod/inference-649d9975cb-tpb62       Stopping container inference
+2m15s       Normal    ScalingReplicaSet   deployment/inference                 Scaled up replica set inference-8675649fbc from 0 to 1
+2m15s       Normal    SuccessfulCreate    replicaset/inference-8675649fbc      Created pod: inference-8675649fbc-l9j9w
+2m14s       Normal    Scheduled           pod/inference-8675649fbc-l9j9w       Successfully assigned projet-we/inference-8675649fbc-l9j9w to minikube
+2m13s       Normal    Started             pod/inference-8675649fbc-l9j9w       Started container inference
+2m13s       Normal    Created             pod/inference-8675649fbc-l9j9w       Created container: inference
+2m13s       Normal    Pulled              pod/inference-8675649fbc-l9j9w       Container image "omarraslan99/we-churn-inference:v0.1.0-seance3" already present on machine
+117s        Warning   Unhealthy           pod/inference-8675649fbc-l9j9w       Readiness probe failed: Get "http://10.244.0.8:8000/health": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+
+
+STDERR:
+

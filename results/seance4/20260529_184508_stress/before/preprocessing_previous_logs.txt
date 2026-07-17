@@ -1,0 +1,8 @@
+$ kubectl logs -n projet-we -l app=preprocessing --previous --tail=200
+
+STDOUT:
+
+
+STDERR:
+Error from server (BadRequest): previous terminated container "preprocessing" in pod "preprocessing-664d74fdc-jtjft" not found
+

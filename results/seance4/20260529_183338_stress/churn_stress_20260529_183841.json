@@ -1,0 +1,22 @@
+{
+  "case": "churn",
+  "level": "stress",
+  "rate_configured": 150,
+  "duration_s": 300,
+  "total_requests": 748,
+  "success_200": 748,
+  "failure": 0,
+  "success_rate_pct": 100.0,
+  "latency_avg_s": 0.202,
+  "latency_p95_s": 0.375,
+  "latency_max_s": 1.609,
+  "status_counts": {
+    "200": 748
+  },
+  "started_at_utc": "2026-05-29T16:33:40.886394+00:00",
+  "ended_at_utc": "2026-05-29T16:38:41.138959+00:00",
+  "url": "http://localhost:8000/predict",
+  "archived_at_utc": "2026-05-29T16:38:41.153095+00:00",
+  "git_commit": "5d25a84",
+  "hostname": "DESKTOP-L584EQM"
+}

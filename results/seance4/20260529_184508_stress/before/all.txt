@@ -1,0 +1,27 @@
+$ kubectl get all -n projet-we
+
+STDOUT:
+NAME                                READY   STATUS    RESTARTS   AGE
+pod/inference-8675649fbc-l9j9w      1/1     Running   0          2m15s
+pod/monitoring-5bff87db98-s2lhn     1/1     Running   0          41m
+pod/preprocessing-664d74fdc-jtjft   1/1     Running   0          41m
+
+NAME                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+service/inference-svc       NodePort    10.108.47.145   <none>        8000:31486/TCP   41m
+service/monitoring-svc      ClusterIP   10.100.38.86    <none>        8002/TCP         41m
+service/preprocessing-svc   ClusterIP   10.104.82.201   <none>        8001/TCP         41m
+
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/inference       1/1     1            1           41m
+deployment.apps/monitoring      1/1     1            1           41m
+deployment.apps/preprocessing   1/1     1            1           41m
+
+NAME                                      DESIRED   CURRENT   READY   AGE
+replicaset.apps/inference-649d9975cb      0         0         0       41m
+replicaset.apps/inference-8675649fbc      1         1         1       2m15s
+replicaset.apps/monitoring-5bff87db98     1         1         1       41m
+replicaset.apps/preprocessing-664d74fdc   1         1         1       41m
+
+
+STDERR:
+

@@ -1,0 +1,10 @@
+{
+  "level": "stress",
+  "case": "churn",
+  "rate": null,
+  "duration_s": 300,
+  "url": "http://localhost:8000/predict",
+  "namespace": "projet-we",
+  "top_interval_s": 30,
+  "started_at_utc": "2026-05-29T16:45:08.800757+00:00"
+}

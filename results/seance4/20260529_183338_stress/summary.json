@@ -1,0 +1,16 @@
+{
+  "level": "stress",
+  "case": "churn",
+  "rate": null,
+  "duration_s": 300,
+  "url": "http://localhost:8000/predict",
+  "namespace": "projet-we",
+  "top_interval_s": 30,
+  "started_at_utc": "2026-05-29T16:33:38.967082+00:00",
+  "ended_at_utc": "2026-05-29T16:38:43.696071+00:00",
+  "load_result_file": "results\\seance4\\20260529_183338_stress\\churn_stress_20260529_183841.json",
+  "success_rate_pct": 100.0,
+  "latency_avg_s": 0.202,
+  "latency_p95_s": 0.375,
+  "latency_max_s": 1.609
+}

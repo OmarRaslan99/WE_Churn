@@ -1,0 +1,61 @@
+# kubectl top pods -n projet-we
+
+=== 2026-05-29T16:14:18.665881+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      9m           272Mi           
+monitoring-5bff87db98-s2lhn     3m           33Mi            
+preprocessing-664d74fdc-jtjft   3m           62Mi            
+
+=== 2026-05-29T16:14:48.917064+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      13m          272Mi           
+monitoring-5bff87db98-s2lhn     3m           33Mi            
+preprocessing-664d74fdc-jtjft   3m           62Mi            
+
+=== 2026-05-29T16:15:19.193521+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      13m          272Mi           
+monitoring-5bff87db98-s2lhn     3m           33Mi            
+preprocessing-664d74fdc-jtjft   3m           62Mi            
+
+=== 2026-05-29T16:15:49.436412+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      40m          273Mi           
+monitoring-5bff87db98-s2lhn     4m           33Mi            
+preprocessing-664d74fdc-jtjft   4m           62Mi            
+
+=== 2026-05-29T16:16:19.635750+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      40m          273Mi           
+monitoring-5bff87db98-s2lhn     4m           33Mi            
+preprocessing-664d74fdc-jtjft   4m           62Mi            
+
+=== 2026-05-29T16:16:49.780830+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      32m          273Mi           
+monitoring-5bff87db98-s2lhn     4m           33Mi            
+preprocessing-664d74fdc-jtjft   4m           62Mi            
+
+=== 2026-05-29T16:17:19.925535+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      32m          273Mi           
+monitoring-5bff87db98-s2lhn     4m           33Mi            
+preprocessing-664d74fdc-jtjft   4m           62Mi            
+
+=== 2026-05-29T16:17:50.063719+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      28m          273Mi           
+monitoring-5bff87db98-s2lhn     3m           33Mi            
+preprocessing-664d74fdc-jtjft   3m           62Mi            
+
+=== 2026-05-29T16:18:20.221274+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      28m          273Mi           
+monitoring-5bff87db98-s2lhn     3m           33Mi            
+preprocessing-664d74fdc-jtjft   3m           62Mi            
+
+=== 2026-05-29T16:18:50.371663+00:00 ===
+NAME                            CPU(cores)   MEMORY(bytes)   
+inference-649d9975cb-tpb62      26m          273Mi           
+monitoring-5bff87db98-s2lhn     3m           33Mi            
+preprocessing-664d74fdc-jtjft   4m           62Mi            

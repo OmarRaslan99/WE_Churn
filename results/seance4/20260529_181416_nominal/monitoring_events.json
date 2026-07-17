@@ -1,0 +1,3 @@
+{
+  "error": "405 Client Error: Method Not Allowed for url: http://localhost:8002/events?limit=500"
+}

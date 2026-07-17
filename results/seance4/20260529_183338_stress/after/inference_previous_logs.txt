@@ -1,0 +1,8 @@
+$ kubectl logs -n projet-we -l app=inference --previous --tail=200
+
+STDOUT:
+
+
+STDERR:
+Error from server (BadRequest): previous terminated container "inference" in pod "inference-649d9975cb-tpb62" not found
+

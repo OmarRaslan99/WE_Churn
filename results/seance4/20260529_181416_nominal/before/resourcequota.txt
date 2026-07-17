@@ -1,0 +1,15 @@
+$ kubectl describe resourcequota -n projet-we
+
+STDOUT:
+Name:            projet-quota
+Namespace:       projet-we
+Resource         Used    Hard
+--------         ----    ----
+limits.cpu       2250m   2500m
+limits.memory    1088Mi  1536Mi
+requests.cpu     1650m   2500m
+requests.memory  832Mi   1536Mi
+
+
+STDERR:
+
