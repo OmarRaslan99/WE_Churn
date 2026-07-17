@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: monitoring
-          image: omarraslan99/we-churn-monitoring:v0.1.0-seance3
+          image: omarraslan99/we-churn-monitoring:v1.0-seance5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8002

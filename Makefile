@@ -14,7 +14,7 @@ AFTER ?=
 COMPARE_OUTPUT ?= results/seance4/comparison.md
 MONITORING_URL ?= http://localhost:8002
 DOCKER_USER ?= omarraslan99
-TAG ?= v0.1.0-seance3
+TAG ?= v1.0-seance5
 NAMESPACE ?= projet-we
 K8S_DIR ?= k8s
 

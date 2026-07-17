@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: omarraslan99/we-churn-frontend:v0.1.0-seance3
+          image: omarraslan99/we-churn-frontend:v1.0-seance5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

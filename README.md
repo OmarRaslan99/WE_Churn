@@ -57,7 +57,7 @@ make load-test
 
 ## Deploiement Kubernetes
 
-Les manifests Kubernetes sont dans `k8s/`. Par defaut, ils referencent les images Docker Hub `omarraslan99/we-churn-*:v0.1.0-seance3`. Si votre identifiant Docker Hub est different, remplacez `omarraslan99` dans les manifests `k8s/*.yaml` et lancez `make docker-push DOCKER_USER=<dockerhub-user>` avec le meme nom.
+Les manifests Kubernetes sont dans `k8s/`. Par defaut, ils referencent les images Docker Hub `omarraslan99/we-churn-*:v1.0-seance5`. Si votre identifiant Docker Hub est different, remplacez `omarraslan99` dans les manifests `k8s/*.yaml` et lancez `make docker-push DOCKER_USER=<dockerhub-user>` avec le meme nom.
 
 Demarrage Minikube et deploiement complet :
 

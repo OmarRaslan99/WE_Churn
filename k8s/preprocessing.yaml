@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: preprocessing
-          image: omarraslan99/we-churn-preprocessing:v0.1.0-seance3
+          image: omarraslan99/we-churn-preprocessing:v1.0-seance5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8001

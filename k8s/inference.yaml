@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: inference
-          image: omarraslan99/we-churn-inference:v0.1.0-seance3
+          image: omarraslan99/we-churn-inference:v1.0-seance5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

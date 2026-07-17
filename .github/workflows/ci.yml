@@ -23,7 +23,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
-  IMAGE_TAG: v0.1.0-seance3
+  IMAGE_TAG: v1.0-seance5
 
 jobs:
   test:
