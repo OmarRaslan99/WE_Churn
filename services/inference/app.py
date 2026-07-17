@@ -41,6 +41,7 @@ def health() -> dict[str, str]:
 @app.post("/predict")
 def predict(payload: dict[str, Any]) -> dict[str, Any]:
     started_at = time.perf_counter()
+    status_code = 500
     try:
         result = predict_payload(payload)
         status_code = 200
@@ -114,3 +115,15 @@ def send_monitoring_event(event: dict[str, Any]) -> None:
         requests.post(f"{MONITORING_URL.rstrip('/')}/events", json=event, timeout=1)
     except requests.RequestException:
         pass
+
+
+# Warm up the models at import time. Combined with gunicorn --preload, this loads
+# the artifacts once in the master process before it forks the workers, so every
+# worker inherits a warm, copy-on-write-shared copy. This removes the per-worker
+# cold-start latency spike on the first request and avoids duplicating the models
+# in each worker's memory. If artifacts are absent (e.g. during unit tests before
+# training), we stay lazy and let get_artifacts() load them on first use.
+try:
+    get_artifacts()
+except HTTPException:
+    pass

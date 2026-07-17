@@ -59,6 +59,7 @@ spec:
             - "0.0.0.0:8000"
             - "--workers"
             - "4"
+            - "--preload"
           resources:
             requests:
               cpu: "500m"

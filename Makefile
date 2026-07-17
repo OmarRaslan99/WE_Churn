@@ -57,7 +57,7 @@ train:
 	$(PYTHON) scripts/train_models.py
 
 test:
-	$(UV) run pytest --cov
+	$(UV) run pytest
 
 test-preprocessing:
 	$(UV) run pytest tests/test_preprocessing.py -q --no-cov

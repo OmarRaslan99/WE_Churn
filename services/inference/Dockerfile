@@ -11,4 +11,4 @@ COPY services /app/services
 COPY models /app/models
 
 EXPOSE 8000
-CMD ["gunicorn", "services.inference.app:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "2"]
+CMD ["gunicorn", "services.inference.app:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--workers", "2", "--preload"]
