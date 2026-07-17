@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WE Churn — Console de démonstration</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <div>
+        <h1>WE Churn</h1>
+        <p>Console de démonstration — prédiction de churn &amp; recommandation d'offre</p>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Connexion…</span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- Bloc prédiction -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Profil client</h2>
+        <button class="btn ghost" id="btn-sample" type="button">🎲 Client aléatoire</button>
+      </div>
+
+      <p class="hint" id="profile-ctx">Chargement d'un client…</p>
+
+      <div class="fields">
+        <label>
+          Type de contrat
+          <select id="f-contract">
+            <option value="Month-to-month">Month-to-month</option>
+            <option value="One year">One year</option>
+            <option value="Two year">Two year</option>
+          </select>
+        </label>
+        <label>
+          Ancienneté (mois)
+          <input type="number" id="f-tenure" min="0" max="120" step="1" />
+        </label>
+        <label>
+          Charges mensuelles ($)
+          <input type="number" id="f-monthly" min="0" max="200" step="0.05" />
+        </label>
+        <label>
+          Service Internet
+          <select id="f-internet">
+            <option value="DSL">DSL</option>
+            <option value="Fiber optic">Fiber optic</option>
+            <option value="No">No</option>
+          </select>
+        </label>
+      </div>
+
+      <button class="btn primary" id="btn-predict" type="button">Prédire le churn</button>
+
+      <div class="result hidden" id="result">
+        <div class="gauge">
+          <div class="gauge-value" id="churn-pct">—</div>
+          <div class="gauge-bar"><span id="churn-fill"></span></div>
+          <div class="risk-badge" id="risk-badge">—</div>
+        </div>
+        <div class="offer">
+          <span class="offer-label">Offre recommandée</span>
+          <span class="offer-value" id="offer-value">—</span>
+          <span class="latency" id="latency">—</span>
+        </div>
+      </div>
+      <p class="error hidden" id="predict-error"></p>
+    </section>
+
+    <!-- Bloc monitoring -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Monitoring en direct</h2>
+        <span class="hint" id="metrics-updated">—</span>
+      </div>
+
+      <div class="tiles">
+        <div class="tile"><span class="tile-value" id="m-total">—</span><span class="tile-label">Requêtes</span></div>
+        <div class="tile"><span class="tile-value" id="m-success">—</span><span class="tile-label">Taux succès</span></div>
+        <div class="tile"><span class="tile-value" id="m-avg">—</span><span class="tile-label">Latence moy.</span></div>
+        <div class="tile"><span class="tile-value" id="m-p95">—</span><span class="tile-label">Latence P95</span></div>
+        <div class="tile"><span class="tile-value" id="m-uptime">—</span><span class="tile-label">Uptime</span></div>
+      </div>
+
+      <h3 class="subhead">Répartition des offres</h3>
+      <div class="offers" id="offers-dist"><p class="hint">Aucune donnée pour l'instant.</p></div>
+    </section>
+  </main>
+
+  <footer class="foot">Namespace <code>projet-we</code> · quota 2500m CPU / 1,5 Gi · passerelle unique vers inférence &amp; monitoring</footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

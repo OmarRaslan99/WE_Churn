@@ -145,6 +145,19 @@ Les modeles sont entraines hors Minikube a partir de `data/churn.csv`. Les artef
 - `services/preprocessing` : validation et nettoyage des profils clients.
 - `services/inference` : endpoint `POST /predict`, prediction churn et recommandation.
 - `services/monitoring` : collecte des evenements, volume, latence et erreurs.
+- `services/frontend` : front web de demonstration (passerelle). Sert une page unique et fait proxy vers `inference-svc` et `monitoring-svc` via le DNS interne (`/api/predict`, `/api/metrics`, `/api/sample`).
+
+## Demo - front web
+
+Le service `frontend` expose une interface de demonstration en `NodePort`. Il tire un client au hasard dans le dataset, permet d'editer quelques champs (contrat, anciennete, charges, Internet), lance une prediction en direct et affiche les metriques du monitoring rafraichies en continu.
+
+En local avec Docker Compose, le front est disponible sur `http://localhost:8080`.
+
+Sur Kubernetes, recuperer son URL :
+
+```powershell
+make k8s-url-front
+```
 
 ## Docker Hub
 

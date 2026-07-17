@@ -47,3 +47,23 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: services/frontend/Dockerfile
+    image: we-churn-frontend:0.1.0
+    ports:
+      - "8080:8080"
+    environment:
+      INFERENCE_URL: http://inference:8000
+      MONITORING_URL: http://monitoring:8002
+      DATA_PATH: /app/data/churn.csv
+    depends_on:
+      inference:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3

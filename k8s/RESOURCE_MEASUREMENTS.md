@@ -116,3 +116,19 @@ Chaque execution cree un dossier `results/seance4/<timestamp>_<niveau>/` contena
 | Niveau relance | Success rate avant | Success rate apres | P95 avant | P95 apres | CPU max avant | CPU max apres | Conclusion |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | stress (150 req/min) | 100% | 100% | 0.375s | 0.313s | 417m | 408m | P95 -16.5%, avg -21.8% : amelioration confirmee |
+
+## Seance 5 - Ajout du service frontend (demo)
+
+Un 4e service `frontend` (passerelle FastAPI servant la page de demo et faisant proxy vers `inference-svc` et `monitoring-svc`) a ete ajoute a la demande de l'enseignant. Dimensionne au plus juste, il reste largement dans le quota.
+
+| Service | Requests CPU | Requests memoire | Limits CPU | Limits memoire |
+| --- | ---: | ---: | ---: | ---: |
+| preprocessing | 300m | 192Mi | 500m | 256Mi |
+| inference | 500m | 512Mi | 1000m | 704Mi |
+| monitoring | 150m | 128Mi | 250m | 192Mi |
+| **frontend** | **100m** | **128Mi** | **250m** | **192Mi** |
+| **Total** | **1050m** | **960Mi** | **2000m** | **1344Mi** |
+| **Quota** | **2500m** | **1536Mi** | **2500m** | **1536Mi** |
+| **Marge restante** | **1450m** | **576Mi** | **500m** | **192Mi** |
+
+Verification : `uv run python scripts/validate_k8s_yaml.py` => Requests 1050m / 960Mi, Limits 2000m / 1344Mi, quota OK. Point d'attention a mentionner a l'oral : la marge sur les **limits memoire** descend a 192Mi (le poste le plus contraint apres cet ajout).

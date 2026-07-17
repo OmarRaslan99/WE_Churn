@@ -1,4 +1,4 @@
-.PHONY: help setup train test test-preprocessing test-services all ci-local run build stop logs smoke load-test load-test-nominal load-test-charge load-test-stress load-test-extreme challenge-nominal challenge-charge challenge-stress challenge-extreme challenge-full challenge-diagnostics challenge-compare monitoring-reset minikube-version minikube-start k8s-dry-run k8s-server-dry-run k8s-namespace k8s-deploy k8s-status k8s-rollout k8s-url k8s-top k8s-quota k8s-logs k8s-delete docker-push clean
+.PHONY: help setup train test test-preprocessing test-services all ci-local run build stop logs smoke load-test load-test-nominal load-test-charge load-test-stress load-test-extreme challenge-nominal challenge-charge challenge-stress challenge-extreme challenge-full challenge-diagnostics challenge-compare monitoring-reset minikube-version minikube-start k8s-dry-run k8s-server-dry-run k8s-namespace k8s-deploy k8s-status k8s-rollout k8s-url k8s-url-front k8s-top k8s-quota k8s-logs k8s-delete docker-push clean
 
 UV ?= uv
 PYTHON := $(UV) run python
@@ -47,6 +47,7 @@ help:
 	@echo "  make k8s-deploy         Deployer les manifests Kubernetes"
 	@echo "  make k8s-status         Afficher kubectl get all"
 	@echo "  make k8s-url            Recuperer l'URL Minikube de inference-svc"
+	@echo "  make k8s-url-front      Recuperer l'URL Minikube du front de demo"
 	@echo "  make k8s-top            Afficher kubectl top pods"
 	@echo "  make docker-push DOCKER_USER=<user>  Tagger et pousser les images"
 
@@ -148,9 +149,13 @@ k8s-rollout:
 	kubectl rollout status deployment/preprocessing -n $(NAMESPACE)
 	kubectl rollout status deployment/monitoring -n $(NAMESPACE)
 	kubectl rollout status deployment/inference -n $(NAMESPACE)
+	kubectl rollout status deployment/frontend -n $(NAMESPACE)
 
 k8s-url:
 	minikube service inference-svc -n $(NAMESPACE) --url
+
+k8s-url-front:
+	minikube service frontend-svc -n $(NAMESPACE) --url
 
 k8s-top:
 	kubectl top pods -n $(NAMESPACE)
@@ -168,9 +173,11 @@ docker-push:
 	docker tag we-churn-preprocessing:0.1.0 $(DOCKER_USER)/we-churn-preprocessing:$(TAG)
 	docker tag we-churn-inference:0.1.0 $(DOCKER_USER)/we-churn-inference:$(TAG)
 	docker tag we-churn-monitoring:0.1.0 $(DOCKER_USER)/we-churn-monitoring:$(TAG)
+	docker tag we-churn-frontend:0.1.0 $(DOCKER_USER)/we-churn-frontend:$(TAG)
 	docker push $(DOCKER_USER)/we-churn-preprocessing:$(TAG)
 	docker push $(DOCKER_USER)/we-churn-inference:$(TAG)
 	docker push $(DOCKER_USER)/we-churn-monitoring:$(TAG)
+	docker push $(DOCKER_USER)/we-churn-frontend:$(TAG)
 
 clean:
 	$(PYTHON) -c "import shutil, pathlib; [shutil.rmtree(path, ignore_errors=True) for path in ['.pytest_cache', 'htmlcov']]; [p.unlink() for p in pathlib.Path('.').glob('.coverage*') if p.is_file()]"
